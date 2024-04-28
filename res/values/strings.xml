@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Track My Ass</string>
+    <string name="description">Device Location Tracking App</string>
+    <string name="preferences">Preferences</string>
+    <string name="exit">Exit</string>
+    <string name="map">Map</string>
+
+</resources>
