@@ -6,20 +6,23 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.*;
 import java.util.*;
+import java.util.stream.Collectors;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import com.iaaa.gps.NMEA;
 import com.iaaa.gps.nmea.*;
 
+import android.Manifest;
 import android.app.*;
 import android.content.*;
 import android.content.*;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.*;
 import android.os.*;
 import android.os.*;
-import android.os.PowerManager;
 import android.os.PowerManager.WakeLock;
 import android.util.Log;
 import android.widget.Toast;
@@ -47,9 +50,123 @@ implements
 	}
 	private final IBinder localBinder = new LocalBinder();
 
+    static boolean hasUserGrantedPermission(String permissionName, Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+            return true;
+        boolean granted = context.checkSelfPermission(permissionName)
+                == PackageManager.PERMISSION_GRANTED;
+        return granted;
+    }
+    static boolean hasUserGrantedAllNecessaryPermissions(Context context) {
+        boolean granted = hasUserGrantedPermission(Manifest.permission.ACCESS_COARSE_LOCATION, context)
+                && hasUserGrantedPermission(Manifest.permission.ACCESS_FINE_LOCATION, context);
+
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            granted = granted && hasUserGrantedPermission(
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION, context);
+        }
+        //  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        //      granted = granted && hasUserGrantedPermission(
+        //              Manifest.permission.POST_NOTIFICATIONS, context);
+        //  }
+
+        return granted;
+    }
+
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
 		Log.i(TAG, "onStartCommand(" + startId + "), " + intent);
+
+        if (!hasUserGrantedAllNecessaryPermissions(this)) {
+            Intent permissionsIntent = new Intent();
+            permissionsIntent.setAction("PERMISSIONS_MISSING");
+            sendBroadcast(permissionsIntent);
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+		// ???
+        // ComponentName receiver = new ComponentName(getApplicationContext(), MyAlarmReceiver.class);
+        // PackageManager pm = getApplicationContext().getPackageManager();
+
+        // pm.setComponentEnabledSetting(receiver,
+        //         PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+        //         PackageManager.DONT_KILL_APP);
+
+
+
+		// wake up every N seconds(minutes), receive GPS data, send it, and sleep again
+		AlarmReceiver.Register(this);
+
+		// android 11+ wrapper
+		final GpsStatus.Listener self = this;
+		gnss = new GnssStatus.Callback() {
+			@Override
+			public void onStarted() {
+				super.onStarted();
+				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_STARTED);
+			}
+			@Override
+			public void onStopped() {
+				super.onStopped();
+				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_STOPPED);
+			}
+			@Override
+			public void onFirstFix(int ttffMillis) {
+				super.onFirstFix(ttffMillis);
+				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_FIRST_FIX);
+			}
+			@Override
+			public void onSatelliteStatusChanged(GnssStatus status) {
+				super.onSatelliteStatusChanged(status);
+				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_SATELLITE_STATUS);
+			}
+		};
+
+		LocationManager locationManager = getLocationManager();
+		final File debugSource = new File(Environment.getExternalStorageDirectory() + "/Maps/DEBUG.NMEA");
+		if (debugSource.exists())
+			/* do nothing */;
+		else
+			locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
+		locationManager.addNmeaListener(this);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            locationManager.addGpsStatusListener(this);
+        } else { // Android 11+
+        	locationManager.registerGnssStatusCallback(gnss);
+		}
+		locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, this);
+		//locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0, 0, this);
+
+		// ---------------------------------------
+		// handle preferences
+		if (Preferences.getBoolean("record_nmea"))
+			Recorder.Record();
+		// and track preferences change
+        IntentFilter intentFilter = new IntentFilter();
+        intentFilter.addAction("GPS_PREFERENCES_CHANGED");
+		broadcastReceiver = new BroadcastReceiver() {
+			@Override
+			public void onReceive(Context context, Intent intent) {
+				Log.i(TAG, "Preferences changed");
+				// dumping NMEA?
+				if (Preferences.getBoolean("record_nmea")) {
+					if (Recorder.isRecording() == false)
+						Recorder.Record();
+				}
+				else if (Recorder.isRecording() == true)
+						Recorder.Stop();
+				// etc.
+			}
+		};
+        registerReceiver(broadcastReceiver, intentFilter);
+
+		// PowerManager pm = (PowerManager)getApplicationContext().getSystemService(Context.POWER_SERVICE);
+		// wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
+		// wl.acquire();
+
+		// ok
+        Toast.makeText(this, "GPS Service Started", Toast.LENGTH_LONG).show();
 		return START_STICKY;
 	}
 	@Override
@@ -88,7 +205,10 @@ implements
 		public void onReceive(Context context, Intent intent) {
 			Log.i(TAG, "Timed alarm onReceive()");
 			String sleep_for = Preferences.getString("tracking_interval", INTERVAL);
-			alarmManager.set(AlarmManager.RTC_WAKEUP,
+			Log.i(TAG, "alarmManager = " + alarmManager + ", sleep for " + sleep_for);
+			//alarmManager.set(AlarmManager.RTC_WAKEUP,
+			//		System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
+			alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
 					System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
 
 			new TrackerTask().execute(context);
@@ -99,7 +219,7 @@ implements
 			pendingIntent = PendingIntent.getBroadcast(context,
 					0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 			alarmManager = (AlarmManager) context.getSystemService(ALARM_SERVICE);
-			alarmManager.set(AlarmManager.RTC_WAKEUP,
+			alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
 					System.currentTimeMillis() + Integer.valueOf(FIRST_RUN), pendingIntent);
 		}
 
@@ -150,7 +270,7 @@ implements
 					input = (HttpURLConnection) new URL(backend_address + "/ping").openConnection();
 					input.connect();
 			
-					Log.i(TAG, "input.getResponseCode() = " + input.getResponseCode());
+					Log.i(TAG, "Ping() = " + input.getResponseCode());
 					return input.getResponseCode();
 				}
 				catch (Exception ex) {
@@ -220,6 +340,8 @@ implements
 					JSONObject postData = new JSONObject();
 					postData.put("lat", GGA.Latitude);
 					postData.put("lon", GGA.Longitude);
+					postData.put("course", RMC.Course);
+					postData.put("speed", RMC.Speed);
 					postData.put("utc", GGA.Time);
 					byte[] data = postData.toString().getBytes();
 
@@ -229,8 +351,10 @@ implements
 					connection.setFixedLengthStreamingMode(data.length);
 
 					connection.setRequestProperty("X-TmaGps-SID", session);
-
 					connection.setRequestProperty("Content-Type", "application/json");
+
+					connection.setDoInput(true);
+
 					OutputStream out = new BufferedOutputStream(connection.getOutputStream());
 					out.write(data);
 					out.flush();
@@ -238,8 +362,37 @@ implements
 					// send data
 					connection.connect();
 					code = connection.getResponseCode();
+					if (code == 401) { // server available, do login
+						code = Login();
+						if (code != 200) { // invalid login/password
+							Log.e(TAG, "send: invalid login/password");
+							return code;
+						}
+					}
 
+				    InputStream is = connection.getInputStream();
 					Log.i(TAG, "Put Location " + code);
+
+					//BufferedReader rd = new BufferedReader(new InputStreamReader(is, Charset.forName("UTF-8")));
+					String jsonText = //readAll(rd);
+							new BufferedReader(new InputStreamReader(is))
+					   .lines().collect(Collectors.joining("\n"));
+					Log.i(TAG, "Json: " + jsonText);
+					JSONArray json = new JSONArray(jsonText);
+					List<Endpoint> eps = new ArrayList<Endpoint>();
+					for (int i = 0; i < json.length(); i++) {
+						JSONObject obj = json.getJSONObject(i);
+						Endpoint ep = new Endpoint();
+						ep.name = obj.getString("name");
+						ep.lat = (float)obj.getDouble("lat");
+						ep.lon = (float)obj.getDouble("lon");
+						ep.course = (float)obj.getDouble("course");
+						ep.speed = (float)obj.getDouble("speed");
+						eps.add(ep);
+					}
+					Endpoints = eps.toArray(new Endpoint[0]);
+					is.close();
+					Static.Knock(true);
 				}
 				catch (Exception ex) {
 					Log.e(TAG, "Put Location failed: " + ex.toString());
@@ -253,6 +406,10 @@ implements
 		}
 	}
 
+	// temp place
+	public static Endpoint[] Endpoints = new Endpoint[0];
+
+	// ...
 	protected BroadcastReceiver broadcastReceiver = null;
 
 	@Override
@@ -260,9 +417,6 @@ implements
 		super.onCreate();
 
 		Log.i(TAG, "onCreate");
-		// PowerManager pm = (PowerManager)getApplicationContext().getSystemService(Context.POWER_SERVICE);
-		// wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-		// wl.acquire();
 
         Notification notification = getNotification("Gps Service Started");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -270,71 +424,6 @@ implements
         } else {
             startForeground(NOTIFICATION_ID, notification);
         }
-
-		// wake up every N seconds(minutes), receive GPS data, send it, and sleep again
-		AlarmReceiver.Register(this);
-
-		// android 11+ wrapper
-		final GpsStatus.Listener self = this;
-		gnss = new GnssStatus.Callback() {
-			@Override
-			public void onStarted() {
-				super.onStarted();
-				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_STARTED);
-			}
-			@Override
-			public void onStopped() {
-				super.onStopped();
-				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_STOPPED);
-			}
-			@Override
-			public void onFirstFix(int ttffMillis) {
-				super.onFirstFix(ttffMillis);
-				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_FIRST_FIX);
-			}
-			@Override
-			public void onSatelliteStatusChanged(GnssStatus status) {
-				super.onSatelliteStatusChanged(status);
-				self.onGpsStatusChanged(GpsStatus.GPS_EVENT_SATELLITE_STATUS);
-			}
-		};
-
-		LocationManager locationManager = getLocationManager();
-		locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, this);
-		locationManager.addNmeaListener(this);
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            locationManager.addGpsStatusListener(this);
-        } else { // Android 11+
-        	locationManager.registerGnssStatusCallback(gnss);
-		}
-		locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, this);
-		//locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0, 0, this);
-
-		// ---------------------------------------
-		// handle preferences
-		if (Preferences.getBoolean("record_nmea"))
-			Recorder.Record();
-		// and track preferences change
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("GPS_PREFERENCES_CHANGED");
-		broadcastReceiver = new BroadcastReceiver() {
-			@Override
-			public void onReceive(Context context, Intent intent) {
-				Log.i(TAG, "Preferences changed");
-				// dumping NMEA?
-				if (Preferences.getBoolean("record_nmea")) {
-					if (Recorder.isRecording() == false)
-						Recorder.Record();
-				}
-				else if (Recorder.isRecording() == true)
-						Recorder.Stop();
-				// etc.
-			}
-		};
-        registerReceiver(broadcastReceiver, intentFilter);
-
-		// ok
-        Toast.makeText(this, "GPS Service Started", Toast.LENGTH_LONG).show();
 	}
     
     @Override
@@ -442,6 +531,7 @@ implements
 		Log.v(TAG, "Enabled");
 		if (Preferences.getBoolean("show_notifications"))
 			Toast.makeText(getApplicationContext(), "GPS Enabled", Toast.LENGTH_SHORT).show();		
+		Static.Knock(true);
 	}
 	public void onProviderDisabled(String provider) {
 		Log.v(TAG, "Disabled");
@@ -449,7 +539,7 @@ implements
 			Toast.makeText(getApplicationContext(), "GPS Disabled", Toast.LENGTH_LONG).show();
 		
 		RMC.Status = 'V';	// отметимся, что больше нету у нас данных GPS (хак)
-		Static.Knock();
+		Static.Knock(true);
 	}
 	public void onLocationChanged(Location location) {
 		// Log.v(TAG, "onLocationChanged");
@@ -498,14 +588,14 @@ implements
 					return NMEA.Type.Unknown;
 			}
 			if (type == NMEA.Type.GGA)	// knock on "Global Positioning System Fix Data"
-				Knock();
+				Knock(false);
 			return type;
 		}
 		
-		final static void Knock() {
+		final static void Knock(Boolean urgent) {
 			synchronized(Subscribers) {
 				for (Subscriber subscriber : Subscribers)
-					subscriber.Knock();
+					subscriber.Knock(urgent);
 			}
 		}
 		final static void Clear() {
@@ -535,7 +625,7 @@ implements
 	// DEBUG purposes
 	static
 	{
-		final File debugSource = new File(Environment.getExternalStorageDirectory() + "/aGps/DEBUG.NMEA");
+		final File debugSource = new File(Environment.getExternalStorageDirectory() + "/Maps/DEBUG.NMEA");
 		if (debugSource.exists()/*"sdk".equals(Build.PRODUCT)*/) {
 			// start the fake GPS stream
 			new Thread() {
@@ -546,7 +636,7 @@ implements
 					try {
 						source = new BufferedReader(new FileReader(debugSource));
 						while (true) {
-							Thread.sleep(1000 / 6);
+							Thread.sleep(1000 / 17);
 							
 							String message = source.readLine();
 							if (message != null)

@@ -18,7 +18,7 @@ public class Satellites extends View
 	public float direction = 0;
 	public Subscriber OnGPSChange = new Subscriber() {
 		@Override
-		public void Knock() {
+		public void Knock(Boolean urgent) {
 			post(new Runnable() {
 				public void run() {
 					invalidate();
@@ -117,6 +117,8 @@ public class Satellites extends View
 				}
 			}
 		}
+
+		// todo: if "track position", draw central dot
 
 		canvas.restore();
 	}

@@ -35,7 +35,7 @@ public class Preferences extends Application
 		return Preferences.context;
 	}
 	
-	public static Bitmap getBitmap(int id)
+	public static Bitmap loadBitmap(int id)
 	{
 		return BitmapFactory.decodeResource(context.getResources(), id);
 	}
@@ -108,7 +108,7 @@ public class Preferences extends Application
 			Intent intent = new Intent();
 			intent.setAction("GPS_PREFERENCES_CHANGED");
 	        sendBroadcast(intent);
-			
+
 			super.onBackPressed();
 		}
 		@Override

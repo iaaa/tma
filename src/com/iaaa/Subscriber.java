@@ -1,5 +1,5 @@
 package com.iaaa;
 
 public interface Subscriber {
-	public void Knock();
+	public void Knock(Boolean urgent);
 }

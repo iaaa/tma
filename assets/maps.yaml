@@ -1,0 +1,7 @@
+# http://yaml.org/spec/1.1/current.html
+
+---
+name: Open Cycle Map (CyclOSM)
+database: CyclOSM.sqlite
+script: (string-append "https://" (random-abc) ".tile-cyclosm.openstreetmap.fr/cyclosm/" z "/" x "/" y ".png")
+projection: default

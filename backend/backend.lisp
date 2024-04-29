@@ -310,7 +310,7 @@
    ; весь остальной API требует авторизации
    (define account (db:value "SELECT id FROM accounts WHERE session = ?" session))
    (print "session, account: " session ", " account)
-   (unless session
+   (unless account
       (send-unauthorized))
 
    (REST
@@ -333,29 +333,52 @@
             (send-ok))
          (send-internal-server-error))
 
-      ; return all locations in group
-      (GET "/tma/locations" () ; todo: add group id
-         (send-json (list->vector
-            (db:map (db:query "SELECT latitude, longitude
-                                 FROM locations
-                              WHERE account=?" account)
-               (lambda (lat lon) {
-                  'lat lat
-                  'lon lon
-               }))))
-         (send-404))
+      ;; ; return all locations in group
+      ;; (GET "/tma/locations" () ; todo: add group id
+      ;;    (send-json (list->vector
+      ;;       (db:map (db:query "SELECT latitude, longitude
+      ;;                            FROM locations
+      ;;                         WHERE account=?" account)
+      ;;          (lambda (lat lon) {
+      ;;             'lat lat
+      ;;             'lon lon
+      ;;          }))))
+      ;;    (send-404))
 
       ; record new user location
       (PUT "/tma/location" ()
-         (print "body: " body)
+         (define utc_time (getf body 'utc))
          (define latitude (getf body 'lat))
          (define longitude (getf body 'lon))
-         (define utc_time (getf body 'utc))
+         (define course (getf body 'course))
+         (define speed (getf body 'speed))
+
          (let ((id (db:value "
-                  INSERT INTO locations (account, latitude, longitude, utc_time) VALUES (?,?,?,?)
-                  RETURNING id" account latitude longitude utc_time)))
-            (if (number? id)
-               (send-200))
+                  INSERT INTO locations (account,
+                        latitude, longitude,
+                        utc_time, course, speed) VALUES (?,?,?,?,?,?)
+                  RETURNING id" account latitude longitude utc_time course speed)))
+            (when (number? id)
+               (send-json (list->vector (db:map (db:query "
+                     SELECT account,
+                            latitude, longitude,
+                            course, speed, utc_time
+                      FROM locations
+                     WHERE latitude != 0
+                       AND account != ?
+                     GROUP BY account
+                    HAVING MAX(id)" account)
+                  (lambda (account latitude longitude course speed utc_time) {
+                     'name "name"
+                     'acc account
+                     ; main info
+                     'lat latitude
+                     'lon longitude
+                     ; additional info
+                     'utc utc_time
+                     'course course
+                     'speed speed
+                  })))))
             (send-500))
          (send-404))
 

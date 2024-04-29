@@ -6,13 +6,13 @@
 
  * [Android SDK](https://developer.android.com/studio/index.html#command-line-tools-only) (Android Studio is not needed).  
    Used `/opt/android/sdk` path by default, can be changed using `ANDROID_SDK` environment variable.
- * Android build-tools version 29.0.2 is needed.  
+ * Android build-tools version 33.0.0 is needed.  
    Used `$(ANDROID_SDK)/build-tools/29.0.2` path by default, can be changed directly at the top of `Makefile`.
 
 Issues
 ------
 * `dx: can't find dx.jar` error:  
-  copy `dx.jar` from `$(ANDROID_SDK)/build-tools/27.0.3/lib/` (or any similar existing) into `$(ANDROID_SDK)/build-tools/29.0.2/lib/`
+  copy `dx.jar` from `$(ANDROID_SDK)/build-tools/27.0.3/lib/` (or any similar existing) into `$(ANDROID_SDK)/build-tools/33.0.0/lib/`
 
 Build
 -----
@@ -27,3 +27,6 @@ Makefile has few target to simplify app developing: `make debug` builds, install
 Additionally, `make install`, `make uninstall`, `make start`, `make stop`, and `make restart` are available.
 
 Do a `make clean` to clear the build artifacts from the folder.
+
+---
+bicycle icon source: https://www.flaticon.com/free-icon/bicycle_14191198

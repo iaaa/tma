@@ -41,6 +41,22 @@
             android:title="Tracking interval" />
     </PreferenceCategory>
 
+	<!-- Magnification -->
+    <CheckBoxPreference
+        android:defaultValue="false"
+        android:key="perform_magnification"
+        android:summary="Perform map magnification"
+        android:title="Perform Magnification" />
+	<ListPreference
+		android:defaultValue="no"
+		android:dependency="perform_magnification"
+		android:entries="@array/magnification"
+		android:entryValues="@array/magnificationValues"
+		android:key="magnification"
+		android:summary="Magnification factor"
+		android:title="Magnification" />
+
+	<!-- Other Options -->
     <CheckBoxPreference
         android:defaultValue="true"
         android:key="show_notifications"

@@ -23,10 +23,10 @@ public class NMEA
 	public static void Restore(Intent storage) { }
 
 	// Messages	timestamp
-	public static long Timestamp = 0;
+	public static long Timestamp = 3600; // 1 hour stamp
 
 	// low-level parsing
-	private static char[] packet = null;	// NMEA
+	private static char[] packet = null; // NMEA message
 	private static int packetLength = 0;
 	private static int packetPtr = 0;
 	

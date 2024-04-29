@@ -3,7 +3,7 @@ PLATFORM ?= android-30
 
 ANDROID_SDK?=/opt/android/sdk
 ANDROID_NDK?=/opt/android/ndk
-BUILD_TOOLS?=$(ANDROID_SDK)/build-tools/29.0.2
+BUILD_TOOLS?=$(ANDROID_SDK)/build-tools/33.0.0
 
 ifeq ("$(wildcard $(ANDROID_SDK)/)","")
 $(error ANDROID_SDK not set or invalid!)
@@ -30,9 +30,10 @@ dex/classes.dex: $(shell find src/ -name '*.java')
 	      -S res -J src -M AndroidManifest.xml \
 	      -I $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar
 	mkdir -p obj # compile java files
+	cd obj; unzip -o ../libs/snakeyaml-android-1.8.jar -x "META-INF/*"; cd ..
 	javac -verbose -source 1.8 -target 1.8 -d obj \
 	      -bootclasspath jre/lib/rt.jar \
-	      -classpath $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar:obj \
+	      -classpath $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar:obj:libs/snakeyaml-android-1.8.jar \
 	      -sourcepath src $^
 	mkdir -p dex # create classes.dex
 	$(BUILD_TOOLS)/dx --verbose --dex --output=$@ obj
@@ -41,6 +42,7 @@ debug.apk: dex/classes.dex debug.keystore
 	$(BUILD_TOOLS)/aapt package -f \
 	      -M AndroidManifest.xml -S res -A assets \
 	      -I $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar \
+		  -I libs/snakeyaml-android-1.8.jar \
 	      -F $@ dex
 	## todo: add shared libraries to apk
 	## $BUILD_TOOLS/aapt add debug.apk `find -L lib/ -name *.so`

@@ -20,6 +20,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+	<uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Map -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
@@ -31,7 +33,7 @@
     <application
         android:name="com.track.my.ass.Preferences"
         android:description="@string/description"
-        android:icon="@android:drawable/ic_dialog_map"
+        android:icon="@drawable/bicycle"
         android:label="@string/app_name" >
         <activity
             android:name="com.track.my.ass.TheActivity"

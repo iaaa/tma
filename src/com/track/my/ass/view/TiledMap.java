@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.iaaa.*;
 import com.iaaa.gps.nmea.GSA;
 import com.iaaa.gps.nmea.RMC;
+import com.track.my.ass.Cache;
 import com.track.my.ass.Preferences;
 
 import android.content.Context;
@@ -17,6 +18,7 @@ import android.graphics.PointF;
 import android.graphics.Paint.Style;
 import android.util.AttributeSet;
 import android.util.FloatMath;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.TextView;
@@ -25,7 +27,7 @@ import android.widget.TextView;
 
 //	http://upload.wikimedia.org/wikipedia/commons/6/62/Latitude_and_Longitude_of_the_Earth.svg
 public class TiledMap extends View
-//	implements Saveable
+	implements Subscriber
 {
 	public void Update()
 	{
@@ -48,44 +50,44 @@ public class TiledMap extends View
 		this.infoline = infoline;
 	}
 	
-	public Subscriber OnTileUpdate = new Subscriber() {
-		@Override
-		public void Knock() {
-			post(new Runnable() {
-				public void run() {
-					invalidate();
-				}
-			});
-		}
-	};
+	@Override
+	// subscribe to cache knock
+	public void Knock(Boolean urgent) {
+		// ignore "urgent" parameter
+		post(new Runnable() {
+			public void run() {
+				dirty = true;
+				invalidate();
+			}
+		});
+	}
 
 	boolean dirty = true;
 	public Subscriber OnGPSChange = new Subscriber() {
 		@Override
-		public void Knock() {
-			if (dirty)
-				return;
-			if (RMC.Status != 'A')
-				return;
-			if (Latitude == RMC.Latitude &&
-				Longitude == RMC.Longitude &&
-				Course == RMC.Course)
-				return;
-			Latitude = RMC.Latitude;
-			Longitude = RMC.Longitude;
-			Course = RMC.Course;
+		public void Knock(Boolean urgent) {
+			if (!urgent) {
+				if (dirty)
+					return;
+				if (RMC.Status != 'A')
+					return;
+				if (Latitude == RMC.Latitude &&
+					Longitude == RMC.Longitude &&
+					Course == RMC.Course)
+					return;
+				Latitude = RMC.Latitude;
+				Longitude = RMC.Longitude;
+				Course = RMC.Course;
+			}
 
 			Update();
 		}
 	};
 	
-	
 	float Latitude = 0;
 	float Longitude = 0;
 	float Course = 0;
 	
-//	Bitmap plusBitmap = BitmapFactory.decodeResource(Program.getContext().getResources(), R.drawable.plus);	
-//	Bitmap minusBitmap = BitmapFactory.decodeResource(Program.getContext().getResources(), R.drawable.minus);
 
 	public static final int TILESIZE = 256;
 	
@@ -164,8 +166,6 @@ public class TiledMap extends View
 			position.y = BitmapOrigo[Scale];
 			break;
 		}
-		
-//		position.y = BitmapOrigo[Scale] - (int)(y * PixelsPerLonRadian[Scale]);
 	}
 
 	static final float RADIANS_PER_DEGREE = (float)(2.0 * Math.PI / 360.0);
@@ -179,6 +179,8 @@ public class TiledMap extends View
 	// =======================================================================
 	public TiledMap(Context context, AttributeSet attrs) {
 		super(context, attrs);
+
+		Cache.Subscribe(this);
 	}
 	
 	public void toscale(int nz)
@@ -193,7 +195,6 @@ public class TiledMap extends View
 			position.x /= 2;
 			position.y /= 2;
 		}
-		updatePositions();
 		invalidate();
 	}
 	public void rescale(int dz)
@@ -212,7 +213,6 @@ public class TiledMap extends View
 				position.y /= 2;
 			}
 		}
-		updatePositions();
 		invalidate();
 	}
 	public int getScale()
@@ -220,11 +220,10 @@ public class TiledMap extends View
 		return z;
 	}
 
-	protected static long Timestamp = 0;
+	// protected static long Timestamp = 0;
 	protected static int z = Preferences.getInt("trackView.scale", 0);
 	protected static Point position = Preferences.getPoint("trackView.position",
-			ToPosition(0, 0, z)
-//			math.ToPosition(24.01852f, 49.84312f, z)		// Широта: N49°50'35.22", Довгота:E24°01'06.66"
+			ToPosition(30.367886f, 50.4021379f, z)
 	);
 	public Point getPosition() { return position; }
 
@@ -248,34 +247,35 @@ public class TiledMap extends View
 	}
 
 	public String textScale = "";
-	int pixels = 0;
-	
-	public boolean Magnifier = false;
+	// int pixels = 0;
 	
 	static AtomicInteger ai = new AtomicInteger(0);
 	Paint color = new Paint(Paint.ANTI_ALIAS_FLAG);
+	Paint black = new Paint(Paint.ANTI_ALIAS_FLAG);
 	Point pos = new Point();
+
+	static float magnification = 1.0f;
+
+	// в целях оптимизации расхода ресурсов алгоритм
+	//  вывода карты будет простой, но не проще нужного
 	@SuppressWarnings("deprecation")
 	@Override
 	protected void onDraw(Canvas canvas)
 	{
-		dirty = false;
-		
-		final int W = this.getWidth();
-		final int H = this.getHeight();
+		dirty = false; // отметка того, что карта перерисована
+		boolean magnifier = Preferences.getBoolean("perform_magnification");
+		magnification = magnifier ? Float.parseFloat(Preferences.getString("magnification", "1")) : 1.0f;
 
-		// TEMP:
-		canvas.drawColor(Color.TRANSPARENT);
-		
-		if (Magnifier) {
+		final int W = (int)(this.getWidth() / magnification);
+		final int H = (int)(this.getHeight() / magnification);
+		Log.v("Gps", "Magnifier: " + String.valueOf(magnification) + ", W = " + String.valueOf(W) + ", H = " + String.valueOf(H));
+
+		if (magnifier) {
 			canvas.save();
-			//canvas.scale(1/2f, 1/2f, W / 2, H / 2);
-			canvas.scale(2f, 2f, W / 2, H / 2);
+			canvas.scale(magnification, magnification);
 		}
+		// canvas.drawColor(Color.TRANSPARENT);
 		
-		final int BLOCK_SIZE = 256;
-		
-		int M = Math.max(W, H);
 		int cx = W / 2;
 		int cy = H / 2;
 
@@ -295,61 +295,62 @@ public class TiledMap extends View
 		// Алгоритм спирального рисования. В начале цикла рисуем один вверх,
 		//	в конце цикла - n-1 вверх, и если еще не конец, то все сначала.
 		try {
-//			Tile tile;
-//
-//			final int c = (int)((M + (BLOCK_SIZE - 1)) / BLOCK_SIZE + 1) | 1;
-//			Tileset.Prepare(c * c);
-//			
-//	//		Draw: g.DrawImage(image, lx, ly);
-//			Cache.get(x, y, z).Draw(canvas, X, Y);	// Центральная картинка
-//			
-//			for (int i = 1; i < c - 1; i++)
-//			{	// на самом деле тут i += 2, так как чуть ниже тоже есть "++i"
-//				Y -= BLOCK_SIZE;
-//				tile = Cache.get(x, --y, z);	// отрисуем один элемент вверх
-//				if (Y > -B)	// <оптимизированное условие видимости
-//					tile.Draw(canvas, X, Y);
-//					
-//				// линия влево (та, что вверху)
-//				for (int j = 0; j < i; j++) {
-//					X -= BLOCK_SIZE;
-//					tile = Cache.get(--x, y, z);	// кешируем
-//					if (Y > -B && X > -B)
-//						tile.Draw(canvas, X, Y);
-//				}
-//					
-//				++i;
-//	
-//				// линия вниз (та, что слева)
-//				for (int j = 0; j < i; j++) {
-//					Y += BLOCK_SIZE;
-//					tile = Cache.get(x, ++y, z);
-//					if (X > -B && Y > -B && Y < H)
-//						tile.Draw(canvas, X, Y);
-//				}
-//				// линия вправо (та, что внизу)
-//				for (int j = 0; j < i; j++) {
-//					X += BLOCK_SIZE;
-//					tile = Cache.get(++x, y, z);
-//					if (Y < H && X > -B && X < W)
-//						tile.Draw(canvas, X, Y);
-//				}
-//	
-//				// линия вверх (та, что справа)
-//				for (int j = 0; j < i; j++) {
-//					Y -= BLOCK_SIZE;
-//					tile = Cache.get(x, --y, z);
-//					if (X < W && Y < H && Y > -B)
-//						tile.Draw(canvas, X, Y);
-//				}
-//			}
+			Tile tile;
+
+			// считаем количество спиралей для покрытия экрана,
+			// "+1" для центрального тайла
+			final int c = (int)
+				(((Math.max(W, H) / 2 - BLOCK_SIZE) + (BLOCK_SIZE - 1)) / BLOCK_SIZE) * 2 + 1;
+				//simplified version: ((Math.max(W, H) / 2 - 1) / BLOCK_SIZE) * 2 + 1;
+
+			Tile.Reserve(c * c); // reserve tile space (количество тайлов)
+
+			Cache.get(x, y, z).Draw(canvas, X, Y);	// центральный тайл
+			for (int i = 1; i <= c; i++)
+			{	// на самом деле тут i += 2, так как чуть ниже тоже есть "++i"
+				Y -= BLOCK_SIZE;
+				tile = Cache.get(x, --y, z);	// один элемент вверх
+				if (Y > -B)	// оптимизированное условие видимости
+					tile.Draw(canvas, X, Y);
+					
+				// линия влево (та, что вверху)
+				for (int j = 0; j < i; j++) {
+					X -= BLOCK_SIZE;
+					tile = Cache.get(--x, y, z);
+					if (Y > -B && X > -B)
+						tile.Draw(canvas, X, Y);
+				}
+					
+				++i;
+	
+				// линия вниз (та, что слева)
+				for (int j = 0; j < i; j++) {
+					Y += BLOCK_SIZE;
+					tile = Cache.get(x, ++y, z);
+					if (X > -B && Y > -B && Y < H)
+						tile.Draw(canvas, X, Y);
+				}
+				// линия вправо (та, что внизу)
+				for (int j = 0; j < i; j++) {
+					X += BLOCK_SIZE;
+					tile = Cache.get(++x, y, z);
+					if (Y < H && X > -B && X < W)
+						tile.Draw(canvas, X, Y);
+				}
+	
+				// линия вверх (та, что справа)
+				for (int j = 0; j < i; j++) {
+					Y -= BLOCK_SIZE;
+					tile = Cache.get(x, --y, z);
+					if (X < W && Y < H && Y > -B)
+						tile.Draw(canvas, X, Y);
+				}
+			}
 		} catch (Exception ex) {
 			System.out.println(ex);
 		}
-		
-//		if (GPRMC.Status == 0)
-//			return;
-		
+
+		// стрелка-указатель себя родимого:
 
 		char type = GSA.Type; 
 		double pdop = GSA.PDOP;
@@ -379,29 +380,73 @@ public class TiledMap extends View
 
 		cx += pos.x;
 		cy += pos.y;
-		
-		float a1 = ToRadians(RMC.Course);
-		float a2 = ToRadians(RMC.Course + 120);
-		float a3 = ToRadians(RMC.Course - 120);
 
-		int a1x = (int)(Math.sin(a1) * 25); // legacy - FloatMath
-		int a1y = (int)(Math.cos(a1) * 25);
-		int a2x = (int)(Math.sin(a2) * 10);
-		int a2y = (int)(Math.cos(a2) * 10);
-		int a3x = (int)(Math.sin(a3) * 10);
-		int a3y = (int)(Math.cos(a3) * 10);
+		drawArrow(canvas, color,
+			cx, cy, RMC.Course, 25, 10);
+
+		// draw group markers
+		black.setColor(0xff000000);
+		black.setStyle(Style.STROKE);
+		black.setStrokeWidth(2);
+
+		Endpoint[] endpoints = Gps.Endpoints;
+		for (int i = 0; i < endpoints.length; i++) {
+			Log.i("Gps", "endpoint " + String.valueOf(i));
+			Endpoint endpoint = endpoints[i];
+			ToPosition(pos, endpoint.lon, endpoint.lat, z);
+			cx = W / 2 + pos.x - position.x;
+			cy = H / 2 + pos.y - position.y;
+
+			color.setColor(0xffFF0000); // todo: change color to GPS location signal strength
+
+			if (endpoint.course == 0) {
+				canvas.drawCircle(cx, cy, 7, color);
+				color.setColor(0xffFF0000);
+				canvas.drawCircle(cx, cy, 9, black);
+			}
+			else
+				drawArrow(canvas, color,
+					cx, cy, endpoint.course, 20, 8);
+		}
+
+// //		color.setColor(0xFF000000); // black
+// 		canvas.drawLine(W - 48, H - 5, W - 48 - pixels, H - 5, color);
+// 		canvas.drawLine(W - 48, H - 5, W - 48, H - 8, color);
+// 		canvas.drawLine(W - 48 - pixels, H - 5, W - 48 - pixels, H - 8, color);
+
+/*
+		// Debug mode:
+		color.setStrokeWidth(4);
+		color.setColor(0xff0000FF);
+		canvas.drawLine(0, H, W, H, color);
+		canvas.drawLine(W, 0, W, H, color);
+
+		cx -= pos.x;  cy -= pos.y;
+		color.setStrokeWidth(4);
+		color.setColor(0xff000000);
+		canvas.drawLine(cx-15, cy, cx+15, cy, color);
+		canvas.drawLine(cx, cy-15, cx, cy+15, color);
+//*/
+		if (magnifier)
+			canvas.restore();
+	}
+
+	void drawArrow(Canvas canvas, Paint color, float cx, float cy, float course, int len, int width)
+	{
+		float a1 = ToRadians(course);
+		float a2 = ToRadians(course + 120);
+		float a3 = ToRadians(course - 120);
+
+		int a1x = (int)(Math.sin(a1) * len);
+		int a1y = (int)(Math.cos(a1) * len);
+		int a2x = (int)(Math.sin(a2) * width);
+		int a2y = (int)(Math.cos(a2) * width);
+		int a3x = (int)(Math.sin(a3) * width);
+		int a3y = (int)(Math.cos(a3) * width);
 		
 		canvas.drawLine(cx + a1x, cy - a1y, cx + a2x, cy - a2y, color);
 		canvas.drawLine(cx + a1x, cy - a1y, cx + a3x, cy - a3y, color);
 		canvas.drawLine(cx + a2x, cy - a2y, cx + a3x, cy - a3y, color);
-		
-//		color.setColor(0xFF000000); // black
-		canvas.drawLine(W - 48, H - 5, W - 48 - pixels, H - 5, color);
-		canvas.drawLine(W - 48, H - 5, W - 48, H - 8, color);
-		canvas.drawLine(W - 48 - pixels, H - 5, W - 48 - pixels, H - 8, color);
-		
-		if (Magnifier)
-			canvas.restore();
 	}
 	
 //	Color Yellow = new Color(0x77FFFF00);
@@ -418,7 +463,6 @@ public class TiledMap extends View
 	@Override
 	public boolean onTouchEvent(MotionEvent event)
 	{
-//		dumpEvent(event);
 		switch (event.getAction())
 		{
 		case MotionEvent.ACTION_DOWN:
@@ -426,10 +470,10 @@ public class TiledMap extends View
 			savedPosition = firstPosition = new PointF(event.getX(), event.getY());
 			trackPosition = false;
 			isPositionMoved = false;
-			break;
+			return true;
 		case MotionEvent.ACTION_UP:
 			isCapturing = false;
-			break;
+			return true;
 		case MotionEvent.ACTION_MOVE:
 			if (isCapturing) {
 				PointF current = new PointF(event.getX(), event.getY());
@@ -437,39 +481,12 @@ public class TiledMap extends View
 				savedPosition = current;
 				isPositionMoved = true;
 			
-				position.x += (int)move.x;
-				position.y += (int)move.y;
+				position.x += (int)(move.x / magnification);
+				position.y += (int)(move.y / magnification);
 				invalidate();
-				updatePositions();
 			}
 			break;
 		}
 		return super.onTouchEvent(event);
-	}
-	
-	public void updatePositions()
-	{
-		float lat = Lat(position.y, z);
-		float len = (float)Math.cos(lat) * 40000 / (float)NumTiles[z];
-		
-//		pixels = (int)(256 * (
-//			len > 10000 ? (10000 / len) :
-//			len > 1000  ? (1000 / len) :
-//			len > 100   ? (100 / len) :
-//			len > 10    ? (10 / len) :
-//			len > 1     ? (1 / len) :
-//			len > 0.1f  ? (0.1f / len) :
-//				          (0.01f / len)));
-//		textScale = 
-//			len > 10000 ? "10000 km" :
-//			len > 1000  ? "1000 km" :
-//			len > 100   ? "100 km" :
-//			len > 10    ? "10 km" :
-//			len > 1     ? "1 km" :
-//			len > 0.1f  ? "100 m" :
-//				          "10 m";
-//			
-//		if (infoline != null)
-//			infoline.setText(textScale);
 	}
 }

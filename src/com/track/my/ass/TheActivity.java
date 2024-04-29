@@ -3,37 +3,33 @@ package com.track.my.ass;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import org.yaml.snakeyaml.Yaml;
 
 import com.iaaa.Gps;
-import com.iaaa.gps.nmea.RMC;
 import com.track.my.ass.view.Satellites;
+import com.track.my.ass.view.TiledMap;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -42,22 +38,13 @@ import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
-import android.content.Intent;
-import android.os.Bundle;
-import android.preference.Preference;
-import android.preference.PreferenceActivity;
-import android.view.Menu;
-import android.view.MenuItem;
-import android.preference.EditTextPreference;
 
 public class TheActivity extends Activity
 	implements SensorEventListener
 {
 	final static String TAG = "Gps";
 
-	public TheActivity()
-	{
+	public TheActivity() {
 		final Thread.UncaughtExceptionHandler defaultUncaughtExceptionHandler =
 				Thread.getDefaultUncaughtExceptionHandler();
 		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
@@ -68,22 +55,6 @@ public class TheActivity extends Activity
                 	defaultUncaughtExceptionHandler.uncaughtException(thread, exception);
 			}
 		});
-
-		// Thread thread = new Thread() {
-		// 	@Override
-		// 	public void run() {
-		// 		try {
-		// 			while(true) {
-		// 				Log.i(TAG, "thread notification");
-		// 				sleep(1000);
-		// 			}
-		// 		} catch (InterruptedException e) {
-		// 			e.printStackTrace();
-		// 		}
-		// 	}
-		// };
-
-		// thread.start();
 	}
 	void Fatal(final Object message, final Object exception)
 	{
@@ -109,7 +80,7 @@ public class TheActivity extends Activity
 		
 		// TODO: ErrorReport.Send(activity, message, exception);
 	}
-	
+
 	// sensors
 	SensorManager sensorManager;
 	private Sensor sensorMagneticField;
@@ -126,7 +97,19 @@ public class TheActivity extends Activity
 			((ImageView)view).setAlpha(80);
 		}
 	}
+	void checkScaleButtons()
+	{
+		int scale = tiledMapView.getScale();
+		
+		findViewById(R.id.imageViewMinus).setVisibility(scale < 2
+				? View.INVISIBLE : View.VISIBLE);
+		
+		findViewById(R.id.imageViewPlus).setVisibility(scale >= TiledMap.SCALE_LIMIT
+				? View.INVISIBLE : View.VISIBLE);
+	}
 
+
+	protected TiledMap tiledMapView;
 	protected Satellites satellitesView;
 
 	@Override
@@ -136,19 +119,34 @@ public class TheActivity extends Activity
 		sensorManager = (SensorManager)getSystemService(Context.SENSOR_SERVICE);
 		sensorAccelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		sensorMagneticField = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-		
+
+		// start services if not started
+		this.startService(new Intent(this, Gps.class));
+		// initialize map
+		Database.New(this);
+
 		// init layout
         setContentView(R.layout.main);
+
+		tiledMapView = (TiledMap)findViewById(R.id.mapView);
 
 		satellitesView = (Satellites)findViewById(R.id.satellites);
 		satellitesView.setOnClickListener(new OnClickListener() {
 			public void onClick(View v) {
-				// trackView.TrackPosition(true);
+				tiledMapView.TrackPosition(true);
 			}});
 
-		// start services if not started
-		this.startService(new Intent(this, Gps.class));
-//		this.startService(new Intent(this, Database.class));
+		new Button(R.id.imageViewPlus, new OnClickListener() { // plus
+			public void onClick(View v) {
+				tiledMapView.rescale(+1);
+				checkScaleButtons();
+			}});
+		new Button(R.id.imageViewMinus, new OnClickListener() { // minus
+			public void onClick(View v) {
+				tiledMapView.rescale(-1);
+				checkScaleButtons();
+			}});
+		checkScaleButtons();
 	}
 
 	@Override
@@ -172,17 +170,17 @@ public class TheActivity extends Activity
 	
 	private float direction;
 
-    
+
 	@Override
 	protected void onResume()
 	{
 		super.onResume();
 //		if (!Tileset.IsValid()) return;
-		
+
 //		Gps.Subscribe(this);
-//		Gps.Subscribe(((MapView)mapView).OnGPSChange);
+		Gps.Subscribe(tiledMapView.OnGPSChange);
 		Gps.Subscribe(satellitesView.OnGPSChange);
-		
+
 		sensorManager.registerListener(this,
 				sensorAccelerometer,
 				SensorManager.SENSOR_DELAY_NORMAL);
@@ -204,21 +202,15 @@ public class TheActivity extends Activity
 //		Cache.Unsubscribe();
 		Gps.UnsubscribeAll();
 		
-		save();		// сохраним состояние
+		// сохраним состояние
+		save();
 	}
 
 	//	<!-- saving
-	private void save(int id, Editor preferences)
-	{
-//		View view = findViewById(id);
-//		if (view instanceof Saveable) {
-//			((Saveable)view).save(preferences);
-//		}
-	}
 	private void save()
 	{
 		Editor preferences = Preferences.edit();
-		save(R.id.mapView, preferences);
+		tiledMapView.save(preferences);
 		preferences.commit();
 	}
 	// -->
@@ -242,6 +234,7 @@ public class TheActivity extends Activity
 	{
 		MenuInflater inflater = getMenuInflater();
 		inflater.inflate(R.menu.menu, menu);
+		menu.setGroupDividerEnabled(true);
 		return true;
 	}
 	@Override
@@ -276,9 +269,12 @@ public class TheActivity extends Activity
 			case R.id.preferences:
 				startActivity(new Intent(this, Preferences.Activity.class));
 				return true;
-//		    case R.id.tools:
-//		    	showDialog(2);
-//		    	return true;
+
+			// change the map
+			case R.id.map_changer:
+				showDialog(1);
+				return true;
+
 			default:
 				return super.onOptionsItemSelected(item);
 		}
@@ -286,25 +282,47 @@ public class TheActivity extends Activity
 	
 	@SuppressWarnings("serial")
 	@Override
-	protected Dialog onCreateDialog(int id) {
-//		if (!Tileset.IsValid()) return null;
-		
-		File aGps = new File(Environment.getExternalStorageDirectory(), "aGps");
-		try {
-			aGps.mkdirs();
-	    }
-	    catch(SecurityException e) {
-	        Log.e("aGps", "unable to write on the sd card " + e.toString());
-	    }
-	    
+	protected Dialog onCreateDialog(int id)
+	{
 		switch (id) {
 			// http://developer.android.com/guide/topics/ui/dialogs.html
 			case 1: {
-				// final Dialog dialog = new Dialog(this);
-				// dialog.setContentView(R.layout.map);
-				// dialog.setTitle("Title...");
+				try {
+					InputStream input = this.getAssets().open("maps.yaml");
+					Yaml yaml = new Yaml();
+					Iterable<Object> maps = yaml.loadAll(input);
+
+					final List<String> names = new ArrayList<String>();
+					final List<String> databases = new ArrayList<String>();
+					final List<String> scripts = new ArrayList<String>();
+					final List<String> projections = new ArrayList<String>();
+					for (Object object : maps) {
+						Map<String, Object> map = (Map<String, Object>) object;
+						names.add((String)map.get("name"));
+
+						databases.add((String)map.get("database"));
+						scripts.add((String)map.get("script"));
+						projections.add((String)map.get("projection"));
+					}
 	
-				// return dialog;
+					final Context context = this;
+					AlertDialog dialog = new AlertDialog.Builder(this)
+						.setTitle("Select Map")
+						.setSingleChoiceItems(names.toArray(new String[0]), names.indexOf(Database.Name), new DialogInterface.OnClickListener() {
+		                    @Override
+		                    public void onClick(DialogInterface dialog, int id) {
+								Log.i(TAG, "Selected map " + String.valueOf(id) + ": " + names.get(id));
+								Database.New(context, names.get(id),
+										databases.get(id), scripts.get(id), projections.get(id));
+								dialog.dismiss();
+		                    }
+		                })
+		                .create();
+			        return dialog;
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+				break;
 			}
 		}
 		return null;

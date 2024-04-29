@@ -3,13 +3,21 @@
 
     <!-- https://www.softicons.com/android-icons -->
     <!-- https://developer.android.com/reference/android/R.drawable -->
-    <item
-        android:id="@+id/exit"
-        android:icon="@android:drawable/ic_lock_power_off"
-        android:title="@string/exit"/>
-    <item
-        android:id="@+id/preferences"
-        android:icon="@android:drawable/ic_menu_preferences"
-        android:title="@string/preferences"/>
+	<group android:id="@+id/grp1">
+		<item
+			android:id="@+id/map_changer"
+			android:icon="@android:drawable/ic_dialog_map"
+			android:title="@string/map_changer"/>
+		<item
+			android:id="@+id/preferences"
+			android:icon="@android:drawable/ic_menu_preferences"
+			android:title="@string/preferences"/>
+	</group>
+	<group android:id="@+id/grp2">
+		<item
+			android:id="@+id/exit"
+			android:icon="@android:drawable/ic_lock_power_off"
+			android:title="@string/exit"/>
+	</group>
 
 </menu>

@@ -10,9 +10,12 @@ CREATE TABLE locations (
 ,  account REFERENCES accounts(id)
 
    -- main location information
-,  latitude REAL
-,  longitude REAL
-,  utc_time DATETIME
+,  utc_time REAL  -- Time (UTC)
+,  latitude REAL  
+,  longitude REAL 
+   -- additional info
+,  course REAL    -- degrees
+,  speed REAL     -- knots
    -- addition info
 ,  fix INTEGER -- Position Fix Indicator
 ,  satellites INTEGER -- Satellites Used

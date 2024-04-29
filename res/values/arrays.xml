@@ -1,21 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+	<!-- Tracking -->
     <string-array name="trackingInterval">
-        <item name="1000">Every 1 second</item>
         <item name="5000">Every 5 seconds</item>
+        <item name="10000">Every 10 seconds</item>
         <item name="15000">Every 15 seconds</item>
         <item name="30000">Every 30 seconds</item>
         <item name="60000">Every 1 minute</item>
         <item name="300000">Every 5 minutes</item>
     </string-array>
     <string-array name="trackingIntervalValues">
-        <item name="1000">1000</item>
         <item name="5000">5000</item>
+        <item name="10000">10000</item>
         <item name="15000">15000</item>
         <item name="30000">30000</item>
         <item name="60000">60000</item>
         <item name="300000">300000</item>
+    </string-array>
+
+	<!-- Magnification -->
+    <string-array name="magnification">
+        <item name="0.5">x 0.5</item>
+        <item name="1.0">no</item>
+        <item name="1.5">x 1.5</item>
+        <item name="2.0">x 2</item>
+        <item name="3.0">x 3</item>
+        <item name="4.0">x 4</item>
+    </string-array>
+    <string-array name="magnificationValues">
+        <item name="0.5">0.5</item>
+        <item name="1.0">1.0</item>
+        <item name="1.5">1.5</item>
+        <item name="2.0">2.0</item>
+        <item name="3.0">3.0</item>
+        <item name="4.0">4.0</item>
     </string-array>
 
 </resources>
