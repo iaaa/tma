@@ -314,6 +314,8 @@ public class TheActivity extends Activity
 								Log.i(TAG, "Selected map " + String.valueOf(id) + ": " + names.get(id));
 								Database.New(context, names.get(id),
 										databases.get(id), scripts.get(id), projections.get(id));
+								Cache.Clear();
+								tiledMapView.Update();
 								dialog.dismiss();
 		                    }
 		                })
