@@ -81,7 +81,7 @@ public class Cache
 			}
 		}
 		queue[end] = key;
-		Log.i(TAG, "add(" + x + ", " + y + ", " + z + ")(=" + key + ") to " + end);
+		//Log.i(TAG, "add(" + x + ", " + y + ", " + z + ")(=" + key + ") to " + end);
 		synchronized (queue) {
 			end = (end + 1) % queue.length;
 			queue.notifyAll();	// разбудим поток загрузчика текстур, если он спал
@@ -173,7 +173,6 @@ public class Cache
 	}
 	public static void Knock()
 	{
-		Log.i("Cache", "Knock");
 		if (Subscriber != null)
 			Subscriber.Knock(true);
 	}

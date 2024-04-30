@@ -1,17 +1,24 @@
+.PHONY: all clean
+.PHONY: build debug
+.PHONY: install uninstall start stop restart
+.PHONY: xxx
+all: build
+
 ## prerequisites
 PLATFORM ?= android-30
 
 ANDROID_SDK?=/opt/android/sdk
 ANDROID_NDK?=/opt/android/ndk
 BUILD_TOOLS?=$(ANDROID_SDK)/build-tools/33.0.0
+OL_SRC_ROOT?=thirdparty/ol
 
 ifeq ("$(wildcard $(ANDROID_SDK)/)","")
 $(error ANDROID_SDK not set or invalid!)
 endif
 
-#ifeq ("$(wildcard $(ANDROID_NDK)/)","")
-#$(error ANDROID_NDK not set or invalid!)
-#endif
+ifeq ("$(wildcard $(ANDROID_NDK)/)","")
+$(error ANDROID_NDK not set or invalid!)
+endif
 
 ## project build structure
 $(shell mkdir -p obj dex lib)
@@ -20,8 +27,10 @@ $(shell mkdir -p obj dex lib)
 SHELL := /bin/sh
 PATH = $(shell printenv PATH):$(ANDROID_SDK)/platform-tools
 
-## build ol libraries
-## tbd.
+## ol thirdparty module
+$(OL_SRC_ROOT)/Makefile:
+	git clone https://github.com/otus-lisp/ol $(OL_SRC_ROOT)
+	$(MAKE) -C $(OL_SRC_ROOT) android
 
 ## build java project
 dex/classes.dex: $(shell find src/ -name '*.java')
@@ -38,14 +47,16 @@ dex/classes.dex: $(shell find src/ -name '*.java')
 	mkdir -p dex # create classes.dex
 	$(BUILD_TOOLS)/dx --verbose --dex --output=$@ obj
 
-debug.apk: dex/classes.dex debug.keystore
+debug.apk: dex/classes.dex debug.keystore \
+           $(OL_SRC_ROOT)/Makefile
+	# making package
 	$(BUILD_TOOLS)/aapt package -f \
 	      -M AndroidManifest.xml -S res -A assets \
 	      -I $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar \
-		  -I libs/snakeyaml-android-1.8.jar \
 	      -F $@ dex
-	## todo: add shared libraries to apk
-	## $BUILD_TOOLS/aapt add debug.apk `find -L lib/ -name *.so`
+	# copying olvm libraries
+	find $(OL_SRC_ROOT)/libs/ -type f -name *olvm*.so -printf '%p lib/%P\n'| xargs --max-lines=1 install -D
+	$(BUILD_TOOLS)/aapt add $@ `find -L lib/ -name *.so`
 
 debug.final.apk: debug.apk
 	$(BUILD_TOOLS)/zipalign -f 4 debug.apk debug.final.apk
@@ -60,10 +71,6 @@ debug.keystore:
 	        -alias projectKey -keyalg RSA
 
 # build automation
-.PHONY: build all debug
-
-all: build
-
 build: debug.final.apk
 clean:
 	rm -rf dex/* lib/* obj/*

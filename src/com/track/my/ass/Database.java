@@ -1,5 +1,7 @@
 package com.track.my.ass;
 
+import github.otus_lisp.ol.Olvm;
+
 import java.io.*;
 import java.util.Random;
 
@@ -22,6 +24,8 @@ import android.util.Log;
 
 public class Database
 {
+	final static String TAG = "Gps";
+
     private static long generation = 0;
     public static long Generation() { return generation; }
     
@@ -35,6 +39,22 @@ public class Database
 	static BitmapFactory.Options options = new BitmapFactory.Options();
 	static {
 		options.inPreferredConfig = Bitmap.Config.RGB_565;
+
+		// initialize 
+		Olvm.nativeSetAssetManager(Preferences.getContext().getAssets());
+		// Olvm.eval(",load \"setup.lisp\"")
+		// Olvm.eval("(define *interactive* #true)"); // DEBUG
+		Olvm.eval("(print \"Hello!!!\")");
+		Olvm.eval("(import (otus random!))");
+		Olvm.eval("(define (select . args) (list-ref args (rand! (length args))))");
+
+		Olvm.eval("(define (random3) (string (select #\\0 #\\1 #\\2)))");
+		Olvm.eval("(define (random4) (string (select #\\0 #\\1 #\\2 #\\3)))");
+		Olvm.eval("(define (Gagarin) (string (select #\\G #\\a #\\g #\\a #\\r #\\i #\\n)))");
+		Olvm.eval("(define (Galileo) (string (select #\\G #\\a #\\l #\\i #\\l #\\e #\\o)))");
+
+		Olvm.eval("(define @ #false)"); // disable loader script
+		Olvm.eval("(define (concatenate . args) (define strings (map (lambda (arg) (cond ((string? arg) arg) ((number? arg) (number->string arg)) (else #false))) args)) (apply string-append strings))");
 	}
 
 	public static void Close()
@@ -56,7 +76,7 @@ public class Database
 
 		File storageDirectory = new File(Environment.getExternalStorageDirectory(), "/Maps");
 		try {
-			Log.i("Gps", "Opening '" + filename + "' database");
+			Log.i(TAG, "Opening '" + filename + "' database");
 			if (filename == null)
 				throw new Exception("No database selected (first run?).");
 
@@ -80,13 +100,13 @@ public class Database
 				projectionStyle1 = 2;
 		}
 		catch (Exception ex) {
-			Log.e("Gps", ex.getMessage());
+			Log.e(TAG, ex.getMessage());
 
 			Name = "-- demo --";
 
 			final File file = context.getDatabasePath("demo.db");
 			if (file.exists()) {
-				Log.i("Gps", "Opening demo database");
+				Log.i(TAG, "Opening demo database");
 				SQLiteDatabase database = null;
 				try {
 					database = SQLiteDatabase.openDatabase(
@@ -97,10 +117,10 @@ public class Database
 						if (cursor.getInt(0) != 85)	// number of tiles in demo world.db
 							throw new SQLiteException("Invalid demo database");
 					cursor.close();
-					Log.i("Gps", "Demo database opened");
+					Log.i(TAG, "Demo database opened");
 				}
 				catch (SQLiteException ex2) {
-					Log.i("Gps", ex2.getMessage());
+					Log.i(TAG, ex2.getMessage());
 					file.delete();
 				}
 				finally {
@@ -111,7 +131,7 @@ public class Database
 
 			// если же карты нет (или она была удалена как невалидная) скопируем новую из архива
 			if (!file.exists()) {
-				Log.i("Gps", "Unpacking new demo database");
+				Log.i(TAG, "Unpacking new demo database");
 				try {
 					file.getParentFile().mkdirs();
 				
@@ -137,7 +157,7 @@ public class Database
 					}
 				}
 				catch (Exception ex2) {
-					Log.e("Gps", ex2.getMessage());
+					Log.e(TAG, ex2.getMessage());
 				}
 			}
 
@@ -148,29 +168,31 @@ public class Database
 					SQLiteDatabase.OPEN_READONLY | SQLiteDatabase.NO_LOCALIZED_COLLATORS);
 			databaseFileName = null;
 			downloaderScript = null;
-			Log.i("Gps", "Demo database opened");
+			Log.i(TAG, "Demo database opened");
 		}
 
-		// // test downloader scripts
-		// try {
-		// 	if (downloaderScript != null && !downloaderScript.equals("-")) {
-		// 		// test url script
-		// 		/*lisp.eval(String.format("(defun @ (x y z) %s)", downloaderScript));
-				
-		// 		org.jatha.dynatype.LispValue value = lisp.eval(String.format("(@ %s %s %s)", 0, 0, 0));
-		// 		Log.i("lisp", "test for (0, 0, 0): " + value.toString());
-		// 		if (!(value instanceof org.jatha.dynatype.LispString) || !((org.jatha.dynatype.LispString)value).getValue().startsWith("http"))
-		// 			downloaderScript = null;*/
-		// 	}
-		// 	else {
-		// 		//lisp.eval(String.format("(defun @ (x y z) \"\")", downloaderScript));
-		// 		downloaderScript = null;
-		// 	}
-		// } catch (Exception ex) {
-		// 	Log.e("Lisp", ex.toString());
-		// }
+		// test downloader scripts
+		try {
+			Log.i(TAG, "Testing downloader script...");
+			Log.i(TAG, "Downloader script: " + downloaderScript);
+			if (downloaderScript != null && !downloaderScript.equals("-")) {
+				// test url script
+				Olvm.eval(String.format("(define (@ x y z) %s)", downloaderScript));
+				Object test = Olvm.eval("(@ 0 0 0)");
+				Log.i(TAG, "test eval for (0, 0, 0) = " + test.toString());
+				if (!(test instanceof String) || !((String)test).startsWith("http"))
+					downloaderScript = null;
+				Log.i(TAG, "Downloader script ok");
+			}
+			else {
+				// todo: possibly create empty loader?
+				downloaderScript = null;
+			}
+		} catch (Exception ex) {
+			Log.e(TAG, ex.toString());
+		}
 
-		Log.i("Gps", "Database switched to " + Name);
+		Log.i(TAG, "Database switched to " + Name);
 
 		// store settings
 		Editor editor = Preferences.edit();
@@ -221,7 +243,7 @@ public class Database
 	{
 		if (map != generation)
 			return false;
-		Log.i("Gps", "put(" + String.valueOf(map) + ", " + String.valueOf(key) + ")");
+		Log.i(TAG, "put(" + String.valueOf(map) + ", " + String.valueOf(key) + ")");
 		ContentValues values = new ContentValues();
 		values.put("z_xy", key);
 		values.put("tile", blob);
@@ -236,14 +258,16 @@ public class Database
 	public static String Url(int x, int y, int z)
 	{
 		// todo: use Lisp
-		//return ((org.jatha.dynatype.LispString)(lisp.eval(String.format("(@ %s %s %s)", x, y, z)))).getValue();
-		int abc = rand.nextInt(3);
-		return "http://" + (
-			abc == 0 ? "a" :
-			abc == 1 ? "b" :
-			abc == 2 ? "c" : "q"
-		)
-		+ ".tile-cyclosm.openstreetmap.fr/cyclosm/" + String.valueOf(z) + "/" + String.valueOf(x) + "/" + String.valueOf(y) + ".png";
+		Object url = Olvm.eval(String.format("(@ %s %s %s)", x, y, z));
+		Log.d(TAG, "Url: " + url);
+		return url.toString();
+		// int abc = rand.nextInt(3);
+		// return "http://" + (
+		// 	abc == 0 ? "a" :
+		// 	abc == 1 ? "b" :
+		// 	abc == 2 ? "c" : "q"
+		// )
+		// + ".tile-cyclosm.openstreetmap.fr/cyclosm/" + String.valueOf(z) + "/" + String.valueOf(x) + "/" + String.valueOf(y) + ".png";
 	}
 
 }

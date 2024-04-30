@@ -19,6 +19,7 @@ import android.util.Log;
 import android.content.SharedPreferences.Editor;
 
 // http://www.javacodegeeks.com/2011/01/android-quick-preferences-tutorial.html
+// provides independent access to Context
 public class Preferences extends Application
 {
 	public interface Saveable {

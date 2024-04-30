@@ -29,7 +29,9 @@ public class Tile
 	public static Bitmap Loading = Preferences.loadBitmap(R.drawable.loading);
 	public static Bitmap Nocache = Preferences.loadBitmap(R.drawable.nocache);
 	public static Bitmap Invalid = Preferences.loadBitmap(R.drawable.invalid);
-	
+
+	public static String UserAgent = "curl/7.81.0";
+
 	protected static long Timestamp = 0;
 	public static void Reserve(int step)
 	{
@@ -104,8 +106,10 @@ public class Tile
 		try
 		{
 			input = (HttpURLConnection)new URL(url).openConnection();
+			input.setRequestProperty("User-Agent", UserAgent);
 			input.setDoInput(true);
 			input.setDoOutput(false);
+
 			input.connect();
             
 			// тайл скачан и еще не протух (карту не успели сменить)
@@ -129,7 +133,7 @@ public class Tile
             }
 			else {
 				bitmap = Nocache;
-				Log.e(TAG, "Can't load file");
+				Log.e(TAG, "input.getResponseCode() = " + String.valueOf(input.getResponseCode()));
 			}
         }
         catch (Exception ex) {

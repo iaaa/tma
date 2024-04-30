@@ -206,10 +206,9 @@ implements
 			Log.i(TAG, "Timed alarm onReceive()");
 			String sleep_for = Preferences.getString("tracking_interval", INTERVAL);
 			Log.i(TAG, "alarmManager = " + alarmManager + ", sleep for " + sleep_for);
-			//alarmManager.set(AlarmManager.RTC_WAKEUP,
-			//		System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
-			alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
-					System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
+			if (alarmManager != null)
+				alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
+						System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
 
 			new TrackerTask().execute(context);
 		}
