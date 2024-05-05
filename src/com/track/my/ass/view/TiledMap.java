@@ -92,7 +92,7 @@ public class TiledMap extends View
 	public static final int TILESIZE = 256;
 	
 	public static final int BLOCK_SIZE = 256;	// Размер тайла
-	public static final int SCALE_LIMIT = 18;	// Не более 18! (всего масштабов, значит, 19)
+	public static final int SCALE_LIMIT = 19;	// Не более 19! (всего масштабов, значит, 20)
 
 	// Масштаб считаем с 0-го! Но юзеру говорим, что с 1го :)
 	public static final int NumTiles[]    = new int[SCALE_LIMIT + 1];

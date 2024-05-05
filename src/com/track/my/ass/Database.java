@@ -53,7 +53,7 @@ public class Database
 		Olvm.eval("(define (Gagarin) (string (select #\\G #\\a #\\g #\\a #\\r #\\i #\\n)))");
 		Olvm.eval("(define (Galileo) (string (select #\\G #\\a #\\l #\\i #\\l #\\e #\\o)))");
 
-		Olvm.eval("(define @ #false)"); // disable loader script
+		Olvm.eval("(define @ (string))"); // disable loader script
 		Olvm.eval("(define (concatenate . args) (define strings (map (lambda (arg) (cond ((string? arg) arg) ((number? arg) (number->string arg)) (else #false))) args)) (apply string-append strings))");
 	}
 
