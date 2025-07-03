@@ -28,7 +28,6 @@
     <!-- Internet access -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_LOCATION_EXTRA_COMMANDS" />
 
     <application
         android:name="com.track.my.ass.Preferences"
@@ -36,7 +35,7 @@
         android:icon="@drawable/bicycle"
         android:label="@string/app_name" >
         <activity
-            android:name="com.track.my.ass.TheActivity"
+            android:name="com.track.my.ass.MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

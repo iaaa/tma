@@ -1,6 +1,7 @@
 package com.track.my.ass;
 
 import java.util.Map;
+import java.util.UUID;
 
 import android.app.Application;
 import android.content.Context;
@@ -28,14 +29,26 @@ public class Preferences extends Application
 
 	public void onCreate(){
 		super.onCreate();
-		Preferences.context = getApplicationContext();
+		context = getApplicationContext();
+
+		String id = getString("backend_login", null);
+		if (id == null) {
+			id = UUID.randomUUID().toString();
+			SharedPreferences.Editor editor = edit();
+			editor.putString("backend_login", id);
+			editor.apply();
+		}
 	}
 
 	private static Context context;
 	public static Context getContext() {
 		return Preferences.context;
 	}
-	
+
+	public static String getID() {
+		return Preferences.getString("backend_login");
+	}
+
 	public static Bitmap loadBitmap(int id)
 	{
 		return BitmapFactory.decodeResource(context.getResources(), id);
@@ -107,7 +120,7 @@ public class Preferences extends Application
 		@Override
 		public void onBackPressed() {
 			Intent intent = new Intent();
-			intent.setAction("GPS_PREFERENCES_CHANGED");
+			intent.setAction("TMA_PREFERENCES_CHANGED");
 	        sendBroadcast(intent);
 
 			super.onBackPressed();

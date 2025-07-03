@@ -1,0 +1,4 @@
+#!/bin/bash
+cp database.sqlite database.sqlite~
+rm database.sqlite
+sqlite3 <database.sql

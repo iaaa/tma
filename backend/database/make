@@ -1,5 +1,0 @@
-#!/bin/bash
-
-cp ../database.sqlite ../database.backup
-rm -f ../database.sqlite
-sqlite3 ../database-sveta.sqlite <database.sql

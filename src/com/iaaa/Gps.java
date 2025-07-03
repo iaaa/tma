@@ -11,6 +11,11 @@ import java.util.stream.Collectors;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import com.iaaa.Gps.AlarmReceiver;
+import com.iaaa.Gps.AlarmReceiver.TrackerTask;
+import com.iaaa.Gps.LocalBinder;
+import com.iaaa.Gps.Recorder;
+import com.iaaa.Gps.StopServiceReceiver;
 import com.iaaa.gps.NMEA;
 import com.iaaa.gps.nmea.*;
 
@@ -29,7 +34,6 @@ import android.widget.Toast;
 
 import com.track.my.ass.Preferences;
 import com.track.my.ass.R;
-import com.iaaa.gps.nmea.GGA;
 
 @SuppressWarnings("deprecation")
 public class Gps extends Service
@@ -96,7 +100,8 @@ implements
 
 
 		// wake up every N seconds(minutes), receive GPS data, send it, and sleep again
-		AlarmReceiver.Register(this);
+		if (Preferences.getBoolean("perform_tracking"))
+			AlarmReceiver.Register(this);
 
 		// android 11+ wrapper
 		final GpsStatus.Listener self = this;
@@ -139,12 +144,13 @@ implements
 		//locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 0, 0, this);
 
 		// ---------------------------------------
-		// handle preferences
+		// 
 		if (Preferences.getBoolean("record_nmea"))
 			Recorder.Record();
+
 		// and track preferences change
         IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("GPS_PREFERENCES_CHANGED");
+        intentFilter.addAction("TMA_PREFERENCES_CHANGED");
 		broadcastReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
@@ -156,7 +162,13 @@ implements
 				}
 				else if (Recorder.isRecording() == true)
 						Recorder.Stop();
+
+				// tracker
+				AlarmReceiver.Shutdown();
+				if (Preferences.getBoolean("perform_tracking"))
+					AlarmReceiver.Register(Gps.this);
 				// etc.
+
 			}
 		};
         registerReceiver(broadcastReceiver, intentFilter);
@@ -202,21 +214,23 @@ implements
 		protected static String session = null;
 
 		@Override
-		public void onReceive(Context context, Intent intent) {
+		public void onReceive(Context context, Intent unused) {
 			Log.i(TAG, "Timed alarm onReceive()");
 			String sleep_for = Preferences.getString("tracking_interval", INTERVAL);
 			Log.i(TAG, "alarmManager = " + alarmManager + ", sleep for " + sleep_for);
-			if (alarmManager != null)
-				alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
-						System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
+			if (alarmManager == null)
+				return;
+			// rescedule next alarm
+			alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
+					System.currentTimeMillis() + Integer.valueOf(sleep_for), pendingIntent);
 
 			new TrackerTask().execute(context);
 		}
 
 		public static void Register(Context context) {
 			Intent intent = new Intent(context, AlarmReceiver.class);
-			pendingIntent = PendingIntent.getBroadcast(context,
-					0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+			pendingIntent = PendingIntent.getBroadcast(context, 0, intent,
+					PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 			alarmManager = (AlarmManager) context.getSystemService(ALARM_SERVICE);
 			alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,
 					System.currentTimeMillis() + Integer.valueOf(FIRST_RUN), pendingIntent);
@@ -234,124 +248,146 @@ implements
 			@Override
 			protected Void doInBackground(Context... contexts)
 			{
-				// send GPS location
 				if (!Preferences.getBoolean("perform_tracking"))
 					return null; // no tracking enabled
+
+				// send GPS location
 				backend_address = Preferences.getString("backend_address");
-				if (backend_address == null) // no backend address available
+				if (backend_address == null)
 					return null;
 
 				Context context = contexts[0];
 
-				// todo: change to state machine
-				if (session == null) {
-					int code = Ping();
-					if (code == 401) { // server available, do login
-						code = Login();
-						if (code != 200) { // invalid login/password
-							Log.e(TAG, "send: invalid login/password");
-							return null;
-						}
-					}
-				}
-				if (session == null)
-					return null;
+				// // todo: change to state machine
+				// if (session == null) {
+				// 	int code = Ping();
+				// 	if (code == 401) { // server available, do login
+				// 		code = Login();
+				// 		if (code != 200) { // invalid login/password
+				// 			Log.e(TAG, "send: invalid login/password");
+				// 			return null;
+				// 		}
+				// 	}
+				// }
+				// if (session == null)
+				// 	return null;
 
 				// collect and send gps data
 				PutLocation();
 				return null;
 			}
 
-			protected int Ping()
-			{
-				HttpURLConnection input = null;
-				try {
-					input = (HttpURLConnection) new URL(backend_address + "/ping").openConnection();
-					input.connect();
+			// protected int Ping()
+			// {
+			// 	HttpURLConnection input = null;
+			// 	try {
+			// 		input = (HttpURLConnection) new URL(backend_address + "/ping").openConnection();
+			// 		input.connect();
 			
-					Log.i(TAG, "Ping() = " + input.getResponseCode());
-					return input.getResponseCode();
-				}
-				catch (Exception ex) {
-					Log.e(TAG, "No Ping: " + ex.toString());
-				}
-				finally {
-					if (input != null)
-						input.disconnect();
-				}
-				return 0;
-			}
+			// 		Log.i(TAG, "Ping() = " + input.getResponseCode());
+			// 		return input.getResponseCode();
+			// 	}
+			// 	catch (Exception ex) {
+			// 		Log.e(TAG, "No Ping: " + ex.toString());
+			// 	}
+			// 	finally {
+			// 		if (input != null)
+			// 			input.disconnect();
+			// 	}
+			// 	return 0;
+			// }
 
-			protected int Login()
-			{
-				int code = 0;
-				HttpURLConnection connection = null;
+			// protected int Login()
+			// {
+			// 	int code = 0;
+			// 	HttpURLConnection connection = null;
 
-				try {
-					JSONObject postData = new JSONObject();
-					postData.put("login", Preferences.getString("backend_login"));
-					postData.put("password", Preferences.getString("backend_password"));
-					byte[] data = postData.toString().getBytes();
+			// 	try {
+			// 		JSONObject postData = new JSONObject();
+			// 		postData.put("login", Preferences.getString("backend_login"));
+			// 		postData.put("password", Preferences.getString("backend_password"));
+			// 		byte[] data = postData.toString().getBytes();
 
-					connection = (HttpURLConnection) new URL(backend_address + "/login").openConnection();
-					connection.setDoInput(true);
-					connection.setRequestMethod("POST");
-					connection.setDoOutput(true);
-					connection.setFixedLengthStreamingMode(data.length);
+			// 		connection = (HttpURLConnection) new URL(backend_address + "/login").openConnection();
+			// 		connection.setDoInput(true);
+			// 		connection.setRequestMethod("POST");
+			// 		connection.setDoOutput(true);
+			// 		connection.setFixedLengthStreamingMode(data.length);
 
-					connection.setRequestProperty("Content-Type", "application/json");
-					OutputStream out = new BufferedOutputStream(connection.getOutputStream());
-					out.write(data);
-					out.flush();
+			// 		connection.setRequestProperty("Content-Type", "application/json");
+			// 		OutputStream out = new BufferedOutputStream(connection.getOutputStream());
+			// 		out.write(data);
+			// 		out.flush();
 
-					// send data
-					connection.connect();
-					code = connection.getResponseCode();
+			// 		// send data
+			// 		connection.connect();
+			// 		code = connection.getResponseCode();
 
-					Log.i(TAG, "Login " + code);
-					if (code == 200) {
-						JSONObject response = new JSONObject(
-							new Scanner(connection.getInputStream()).useDelimiter("\\A").next());
-						Log.i(TAG, "Response: " + response.toString());
+			// 		Log.i(TAG, "Login " + code);
+			// 		if (code == 200) {
+			// 			JSONObject response = new JSONObject(
+			// 				new Scanner(connection.getInputStream()).useDelimiter("\\A").next());
+			// 			Log.i(TAG, "Response: " + response.toString());
 						
-						String s = response.getString("session");
-						if (s != null)
-							session = s;
-						return code;
-					}
-				}
-				catch (Exception ex) {
-					Log.e(TAG, "Login failed: " + ex.toString());
-				}
-				finally {
-					if (connection != null)
-						connection.disconnect();
-				}
-				return code;
-			}
+			// 			String s = response.getString("session");
+			// 			if (s != null)
+			// 				session = s;
+			// 			return code;
+			// 		}
+			// 	}
+			// 	catch (Exception ex) {
+			// 		Log.e(TAG, "Login failed: " + ex.toString());
+			// 	}
+			// 	finally {
+			// 		if (connection != null)
+			// 			connection.disconnect();
+			// 	}
+			// 	return code;
+			// }
 
 			protected int PutLocation()
 			{
 				int code = 0;
 				HttpURLConnection connection = null;
 
+				String room = Preferences.getString("tracking_room");
+				if (room == null || room.isEmpty())
+					return 0;
+
+				if (RMC.Status != 'A')
+					return 0;
+
 				try {
 					JSONObject postData = new JSONObject();
-					postData.put("lat", GGA.Latitude);
-					postData.put("lon", GGA.Longitude);
-					postData.put("course", RMC.Course);
+					postData.put("id", Preferences.getID());
+					// location
+					postData.put("latitude", GGA.Latitude);
+					postData.put("longitude", GGA.Longitude);
+					postData.put("altitude", GGA.Altitude);
+
 					postData.put("speed", RMC.Speed);
-					postData.put("utc", GGA.Time);
+					postData.put("course", RMC.Course);
+					// timestamp
+					postData.put("date", RMC.Date);
+					postData.put("time", RMC.Time);
+
+					// additional
+					postData.put("quality", GGA.Quality);
+					postData.put("hdop", GGA.HDOP);
+					// postData.put("satellites", GGA.Satellites);
+					// postData.put("course", RMC.Course);
+
 					byte[] data = postData.toString().getBytes();
 
-					connection = (HttpURLConnection) new URL(backend_address + "/location").openConnection();
+					connection = (HttpURLConnection) new URL(
+							backend_address + "/location/" + room
+						).openConnection();
 					connection.setRequestMethod("PUT");
 					connection.setDoOutput(true);
 					connection.setFixedLengthStreamingMode(data.length);
 
-					connection.setRequestProperty("X-TmaGps-SID", session);
+					// connection.setRequestProperty("X-TmaGps-SID", session);
 					connection.setRequestProperty("Content-Type", "application/json");
-
 					connection.setDoInput(true);
 
 					OutputStream out = new BufferedOutputStream(connection.getOutputStream());
@@ -361,13 +397,13 @@ implements
 					// send data
 					connection.connect();
 					code = connection.getResponseCode();
-					if (code == 401) { // server available, do login
-						code = Login();
-						if (code != 200) { // invalid login/password
-							Log.e(TAG, "send: invalid login/password");
-							return code;
-						}
-					}
+					// if (code == 401) { // server available, do login
+					// 	code = Login();
+					// 	if (code != 200) { // invalid login/password
+					// 		Log.e(TAG, "send: invalid login/password");
+					// 		return code;
+					// 	}
+					// }
 
 				    InputStream is = connection.getInputStream();
 					Log.i(TAG, "Put Location " + code);
@@ -382,12 +418,15 @@ implements
 					for (int i = 0; i < json.length(); i++) {
 						JSONObject obj = json.getJSONObject(i);
 						Endpoint ep = new Endpoint();
-						ep.name = obj.getString("name");
-						ep.lat = (float)obj.getDouble("lat");
-						ep.lon = (float)obj.getDouble("lon");
-						ep.course = (float)obj.getDouble("course");
-						ep.speed = (float)obj.getDouble("speed");
-						eps.add(ep);
+						ep.ID = obj.getString("id");
+						// ep.name = obj.getString("name");
+						ep.lat = (float)obj.getDouble("latitude");
+						ep.lon = (float)obj.getDouble("longitude");
+						ep.alt = (float)obj.getDouble("altitude");
+						// ep.course = (float)obj.getDouble("course");
+						// ep.speed = (float)obj.getDouble("speed");
+						if (Preferences.getID().equals(ep.ID) == false)
+							eps.add(ep);
 					}
 					Endpoints = eps.toArray(new Endpoint[0]);
 					is.close();
@@ -512,11 +551,14 @@ implements
 		if (Recorder.isRecording())
 			Recorder.Write(message);
 		NMEA.Type type = Static.onNmeaReceived(timestamp, message);
-		if (type == NMEA.Type.RMC) {
-			if (RMC.Status == 'A')
-				updateNotification("GPS position status: Valid");
-			else
-				updateNotification("No GPS position calculated");
+		// we don't know RMC or GGA is first, so need to compare timings
+		if (type == NMEA.Type.RMC || type == NMEA.Type.GGA) {
+			if (RMC.Time == GGA.Time) { // complete gps package received
+				if (RMC.Status == 'A')
+					updateNotification("GPS position status: Valid");
+				else
+					updateNotification("No GPS position calculated");
+			}
 		}
     }
 	
@@ -586,8 +628,10 @@ implements
 				if (Subscribers.size() == 0)
 					return NMEA.Type.Unknown;
 			}
-			if (type == NMEA.Type.GGA)	// knock on "Global Positioning System Fix Data"
-				Knock(false);
+			// knock on "Global Positioning System Fix Data"
+			if (type == NMEA.Type.RMC || type == NMEA.Type.GGA)
+				if (RMC.Time == GGA.Time) // complete gps package received
+					Knock(false);
 			return type;
 		}
 		

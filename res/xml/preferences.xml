@@ -12,13 +12,14 @@
         android:key="backend_settings"
         android:title="Backend Settings" >
         <EditTextPreference
-            android:defaultValue="http://iaaa.ddns.net/tma"
+            android:defaultValue="http://192.168.0.13/tma"
             android:dialogMessage="Define the backend address"
             android:dialogTitle="Backend Address"
             android:key="backend_address"
             android:summary="Define the backend address"
             android:title="Backend Address" />
         <EditTextPreference
+			android:enabled="false"
             android:defaultValue=""
             android:dialogMessage="Define the backend login"
             android:dialogTitle="Backend Login"
@@ -26,10 +27,16 @@
             android:title="Login" />
         <EditTextPreference
             android:defaultValue=""
+            android:dialogMessage="Tracking Room"
+            android:dialogTitle="Tracking Room"
+            android:key="tracking_room"
+            android:title="Room" />
+        <!-- <EditTextPreference
+            android:defaultValue=""
             android:dialogMessage="Define the backend password"
             android:dialogTitle="Backend Password"
             android:key="backend_password"
-            android:title="Password" />
+            android:title="Password" /> -->
 
         <ListPreference
             android:defaultValue="1000"

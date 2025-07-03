@@ -13,6 +13,7 @@ import java.util.Map;
 import org.yaml.snakeyaml.Yaml;
 
 import com.iaaa.Gps;
+import com.track.my.ass.MainActivity.Button;
 import com.track.my.ass.view.Satellites;
 import com.track.my.ass.view.TiledMap;
 
@@ -36,50 +37,52 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-public class TheActivity extends Activity
+
+public class MainActivity extends Activity
 	implements SensorEventListener
 {
 	final static String TAG = "Gps";
 
-	public TheActivity() {
-		final Thread.UncaughtExceptionHandler defaultUncaughtExceptionHandler =
-				Thread.getDefaultUncaughtExceptionHandler();
-		Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-			//@Override
-			public void uncaughtException(Thread thread, Throwable exception) {
-				// TODO: ErrorReport.Send(TheActivity.this, "Uncaught exception", exception);
-                if (defaultUncaughtExceptionHandler != null)
-                	defaultUncaughtExceptionHandler.uncaughtException(thread, exception);
-			}
-		});
-	}
-	void Fatal(final Object message, final Object exception)
-	{
-		final Activity activity = this;
-		runOnUiThread(new Runnable(){
-			public void run(){
-				try {
-			        setContentView(R.layout.error);
-					// http://stackoverflow.com/questions/9494037/how-to-set-text-size-of-textview-dynamically-for-diffrent-screens
-					TextView textView = (TextView)findViewById(R.id.textError);
-					// Так как нету рендеререра, то сменим фон с прозрачного на "ошибочный"
-					textView.setBackgroundColor(Color.rgb(153, 13, 15));
-					textView.setText("Извините, что-то случилось:\n" +
-							"\"" + message + "\"\n\n" +
-							"Отчет об ошибке будет отправлен. Ждите исправления в следующем апдейте."
-					);
-				}
-				catch (Exception ex) {
-					// TODO: ErrorReport.Send(activity, "Can't create BSOD", ex); // and ignore exception
-				}
-			}
-		});		
+	// public MainActivity() {
+	// 	final Thread.UncaughtExceptionHandler defaultUncaughtExceptionHandler =
+	// 			Thread.getDefaultUncaughtExceptionHandler();
+	// 	Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+	// 		//@Override
+	// 		public void uncaughtException(Thread thread, Throwable exception) {
+	// 			// TODO: ErrorReport.Send(MainActivity.this, "Uncaught exception", exception);
+    //             if (defaultUncaughtExceptionHandler != null)
+    //             	defaultUncaughtExceptionHandler.uncaughtException(thread, exception);
+	// 		}
+	// 	});
+	// }
+	// void Fatal(final Object message, final Object exception)
+	// {
+	// 	final Activity activity = this;
+	// 	runOnUiThread(new Runnable(){
+	// 		public void run(){
+	// 			try {
+	// 		        setContentView(R.layout.error);
+	// 				// http://stackoverflow.com/questions/9494037/how-to-set-text-size-of-textview-dynamically-for-diffrent-screens
+	// 				TextView textView = (TextView)findViewById(R.id.textError);
+	// 				// Так как нету рендеререра, то сменим фон с прозрачного на "ошибочный"
+	// 				textView.setBackgroundColor(Color.rgb(153, 13, 15));
+	// 				textView.setText("Извините, что-то случилось:\n" +
+	// 						"\"" + message + "\"\n\n" +
+	// 						"Отчет об ошибке будет отправлен. Ждите исправления в следующем апдейте."
+	// 				);
+	// 			}
+	// 			catch (Exception ex) {
+	// 				// TODO: ErrorReport.Send(activity, "Can't create BSOD", ex); // and ignore exception
+	// 			}
+	// 		}
+	// 	});		
 		
-		// TODO: ErrorReport.Send(activity, message, exception);
-	}
+	// 	// TODO: ErrorReport.Send(activity, message, exception);
+	// }
 
 	// sensors
 	SensorManager sensorManager;
@@ -125,9 +128,14 @@ public class TheActivity extends Activity
 		// initialize map
 		Database.New(this);
 
+		// set fullscreen
+		getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
+				WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
 		// init layout
         setContentView(R.layout.main);
 
+		// setup local variables
 		tiledMapView = (TiledMap)findViewById(R.id.mapView);
 
 		satellitesView = (Satellites)findViewById(R.id.satellites);
@@ -136,6 +144,7 @@ public class TheActivity extends Activity
 				tiledMapView.TrackPosition(true);
 			}});
 
+		// "+" and "-" buttons setup
 		new Button(R.id.imageViewPlus, new OnClickListener() { // plus
 			public void onClick(View v) {
 				tiledMapView.rescale(+1);
@@ -177,7 +186,7 @@ public class TheActivity extends Activity
 		super.onResume();
 //		if (!Tileset.IsValid()) return;
 
-//		Gps.Subscribe(this);
+// //		Gps.Subscribe(this);
 		Gps.Subscribe(tiledMapView.OnGPSChange);
 		Gps.Subscribe(satellitesView.OnGPSChange);
 
@@ -193,7 +202,6 @@ public class TheActivity extends Activity
     protected void onPause()
 	{
 		super.onPause();
-//		if (!Tileset.IsValid()) return;
 		
 		sensorManager.unregisterListener(this,
 				sensorMagneticField);
@@ -210,7 +218,8 @@ public class TheActivity extends Activity
 	private void save()
 	{
 		Editor preferences = Preferences.edit();
-		tiledMapView.save(preferences);
+		if (tiledMapView != null)
+			tiledMapView.save(preferences);
 		preferences.commit();
 	}
 	// -->
@@ -225,8 +234,10 @@ public class TheActivity extends Activity
 	char savedQuality = '\0';
 	void updateWindow()
 	{
-//		mapView.invalidate();
-//		satellitesView.invalidate();
+		// if (mapView != null)
+		// 	mapView.invalidate();
+		if (satellitesView != null)
+			satellitesView.invalidate();
 	}
 	
 	@Override
@@ -288,7 +299,16 @@ public class TheActivity extends Activity
 			// http://developer.android.com/guide/topics/ui/dialogs.html
 			case 1: {
 				try {
-					InputStream input = this.getAssets().open("maps.yaml");
+					InputStream input = null;
+					try {
+						// TODO: load "maps.yaml" from server
+						// URL url = new URL(urlString);
+						throw new Exception("no internet map");
+					}
+					catch (Exception ex) {
+						Log.e(TAG, ex.toString());
+						input = this.getAssets().open("maps.yaml");
+					}
 					Yaml yaml = new Yaml();
 					Iterable<Object> maps = yaml.loadAll(input);
 
@@ -315,7 +335,8 @@ public class TheActivity extends Activity
 								Database.New(context, names.get(id),
 										databases.get(id), scripts.get(id), projections.get(id));
 								Cache.Clear();
-								tiledMapView.Update();
+								if (tiledMapView != null)
+									tiledMapView.Update();
 								dialog.dismiss();
 		                    }
 		                })

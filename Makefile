@@ -10,7 +10,7 @@ PLATFORM ?= android-30
 ANDROID_SDK?=/opt/android/sdk
 ANDROID_NDK?=/opt/android/ndk
 BUILD_TOOLS?=$(ANDROID_SDK)/build-tools/33.0.0
-OL_SRC_ROOT?=thirdparty/ol
+# OL_SRC_ROOT?=thirdparty/ol
 
 ifeq ("$(wildcard $(ANDROID_SDK)/)","")
 $(error ANDROID_SDK not set or invalid!)
@@ -27,10 +27,10 @@ $(shell mkdir -p obj dex lib)
 SHELL := /bin/sh
 PATH = $(shell printenv PATH):$(ANDROID_SDK)/platform-tools
 
-## ol thirdparty module
-$(OL_SRC_ROOT)/Makefile:
-	git clone https://github.com/otus-lisp/ol $(OL_SRC_ROOT)
-	$(MAKE) -C $(OL_SRC_ROOT) android
+# ## ol thirdparty module
+# $(OL_SRC_ROOT)/Makefile:
+# 	git clone https://github.com/otus-lisp/ol $(OL_SRC_ROOT)
+# 	$(MAKE) -C $(OL_SRC_ROOT) android
 
 ## build java project
 dex/classes.dex: $(shell find src/ -name '*.java')
@@ -47,15 +47,14 @@ dex/classes.dex: $(shell find src/ -name '*.java')
 	mkdir -p dex # create classes.dex
 	$(BUILD_TOOLS)/dx --verbose --dex --output=$@ obj
 
-debug.apk: dex/classes.dex debug.keystore \
-           $(OL_SRC_ROOT)/Makefile
+debug.apk: dex/classes.dex debug.keystore
 	# making package
 	$(BUILD_TOOLS)/aapt package -f \
 	      -M AndroidManifest.xml -S res -A assets \
 	      -I $(ANDROID_SDK)/platforms/$(PLATFORM)/android.jar \
 	      -F $@ dex
 	# copying olvm libraries
-	find $(OL_SRC_ROOT)/libs/ -type f -name *olvm*.so -printf '%p lib/%P\n'| xargs --max-lines=1 install -D
+	# find $(OL_SRC_ROOT)/libs/ -type f -name *olvm*.so -printf '%p lib/%P\n'| xargs --max-lines=1 install -D
 	$(BUILD_TOOLS)/aapt add $@ `find -L lib/ -name *.so`
 
 debug.final.apk: debug.apk
@@ -86,7 +85,7 @@ uninstall:
 
 # run and stop app on device
 start:
-	adb shell am start -n com.track.my.ass/com.track.my.ass.TheActivity
+	adb shell am start -n com.track.my.ass/com.track.my.ass.MainActivity
 stop:
 	adb shell am force-stop com.track.my.ass
 restart:
@@ -97,3 +96,9 @@ debug:
 	$(MAKE) build
 	$(MAKE) install
 	$(MAKE) start
+
+logcat:
+	adb logcat -v color ol:V \
+	    threaded_app:V nativeloader:E AndroidRuntime:E MessageQueue-JNI:E \
+		name.yuriy_chumak.ol.tui:V Tma:V Gps:V \
+		DEBUG:V *:F 

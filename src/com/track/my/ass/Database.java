@@ -1,6 +1,6 @@
 package com.track.my.ass;
 
-import github.otus_lisp.ol.Olvm;
+import lang.otuslisp.*;
 
 import java.io.*;
 import java.util.Random;
@@ -41,20 +41,20 @@ public class Database
 		options.inPreferredConfig = Bitmap.Config.RGB_565;
 
 		// initialize 
-		Olvm.nativeSetAssetManager(Preferences.getContext().getAssets());
+		Ol.nativeSetAssetManager(Preferences.getContext().getAssets());
 		// Olvm.eval(",load \"setup.lisp\"")
 		// Olvm.eval("(define *interactive* #true)"); // DEBUG
-		Olvm.eval("(print \"Hello!!!\")");
-		Olvm.eval("(import (otus random!))");
-		Olvm.eval("(define (select . args) (list-ref args (rand! (length args))))");
+		Ol.eval("(print \"Hello!!!\")");
+		Ol.eval("(import (otus random!))");
+		Ol.eval("(define (select . args) (list-ref args (rand! (length args))))");
 
-		Olvm.eval("(define (random3) (string (select #\\0 #\\1 #\\2)))");
-		Olvm.eval("(define (random4) (string (select #\\0 #\\1 #\\2 #\\3)))");
-		Olvm.eval("(define (Gagarin) (string (select #\\G #\\a #\\g #\\a #\\r #\\i #\\n)))");
-		Olvm.eval("(define (Galileo) (string (select #\\G #\\a #\\l #\\i #\\l #\\e #\\o)))");
+		Ol.eval("(define (random3) (string (select #\\0 #\\1 #\\2)))");
+		Ol.eval("(define (random4) (string (select #\\0 #\\1 #\\2 #\\3)))");
+		Ol.eval("(define (Gagarin) (string (select #\\G #\\a #\\g #\\a #\\r #\\i #\\n)))");
+		Ol.eval("(define (Galileo) (string (select #\\G #\\a #\\l #\\i #\\l #\\e #\\o)))");
 
-		Olvm.eval("(define @ (string))"); // disable loader script
-		Olvm.eval("(define (concatenate . args) (define strings (map (lambda (arg) (cond ((string? arg) arg) ((number? arg) (number->string arg)) (else #false))) args)) (apply string-append strings))");
+		Ol.eval("(define @ (string))"); // disable loader script
+		Ol.eval("(define (concatenate . args) (define strings (map (lambda (arg) (cond ((string? arg) arg) ((number? arg) (number->string arg)) (else #false))) args)) (apply string-append strings))");
 	}
 
 	public static void Close()
@@ -70,6 +70,7 @@ public class Database
 	{
 		generation++; // это единственное место где меняется дженерейшен.
 		// с этого момента все прошлые запросы к БД объявляются недействительными
+		Log.i(TAG, "Script: " + script);
 
 		if (database != null)
 			database.close();
@@ -177,8 +178,8 @@ public class Database
 			Log.i(TAG, "Downloader script: " + downloaderScript);
 			if (downloaderScript != null && !downloaderScript.equals("-")) {
 				// test url script
-				Olvm.eval(String.format("(define (@ x y z) %s)", downloaderScript));
-				Object test = Olvm.eval("(@ 0 0 0)");
+				Ol.eval(String.format("(define (@ x y z) %s)", downloaderScript));
+				Object test = Ol.eval("(@ 0 0 0)");
 				Log.i(TAG, "test eval for (0, 0, 0) = " + test.toString());
 				if (!(test instanceof String) || !((String)test).startsWith("http"))
 					downloaderScript = null;
@@ -258,7 +259,7 @@ public class Database
 	public static String Url(int x, int y, int z)
 	{
 		// todo: use Lisp
-		Object url = Olvm.eval(String.format("(@ %s %s %s)", x, y, z));
+		Object url = Ol.eval(String.format("(@ %s %s %s)", x, y, z));
 		Log.d(TAG, "Url: " + url);
 		return url.toString();
 		// int abc = rand.nextInt(3);

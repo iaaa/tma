@@ -18,7 +18,7 @@ public class Cache
 	final static String TAG = "Cache";
 
 	static AtomicInteger ai = new AtomicInteger(0);
-	// connection.setRequestProperty("Referer", "http://www.jguru.com/");
+	// connection.setRequestProperty("Referer", "...");
 	// А это кеш собственной персоной:
 	static int size = 0;// действительный размер кеша
 	static Tile[] tiles = new Tile[512];   // todo: use Preferences

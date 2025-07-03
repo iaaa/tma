@@ -24,3 +24,9 @@ database: OSM-Transport.sqlite
 script: (concatenate "http://" (select "a" "b" "c") ".tile.thunderforest.com/transport/" z "/" x "/" y ".png")
 projection: default
 
+---
+name: Relief (maps-for-free)
+database: MFF-Relief.sqlite
+script: (concatenate "https://" "maps-for-free.com" "/layer/relief/z" z "/row" y "/" z "_" x "-" y ".jpg")
+projection: default
+

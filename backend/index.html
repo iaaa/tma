@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>TMA (Demo)</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        html, body, #mapid { height: 100%; margin: 0; padding: 0; }
+        .transparent-div {
+          background-color: transparent;
+        }
+        .green {
+          color: gray;
+          background-color: transparent;
+        }
+        .green {
+          color: green;
+          background-color: transparent;
+        }
+        .yellow {
+          color: yellow;
+          background-color: transparent;
+        }
+        .red {
+          color: red;
+          background-color: transparent;
+        }
+        .orange {
+          color: orange;
+          background-color: transparent;
+        }
+        .gray {
+          color: gray;
+          background-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="mapid"></div>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+      var icons = {
+        // https://css.gg/icon/play-button-o
+        play: {
+          html: `
+            <svg xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none" >
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M12 21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 3 12C3 16.9706 7.02944 21 12 21ZM12 23C18.0751 23 23 18.0751 23 12C23 5.92487 18.0751 1 12 1C5.92487 1 1 5.92487 1 12C1 18.0751 5.92487 23 12 23Z"
+                fill="currentColor"
+              />
+              <path d="M16 12L10 16.3301V7.66987L16 12Z" fill="currentColor" />
+            </svg>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12] },
+        pause: {
+          html: `
+            <svg xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none" >
+              <path d="M9 9H11V15H9V9Z" fill="currentColor" />
+              <path d="M15 15H13V9H15V15Z" fill="currentColor" />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M23 12C23 18.0751 18.0751 23 12 23C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12ZM21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z"
+                fill="currentColor"
+              />
+            </svg>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12] },
+        // https://css.gg/icon/arrow-left-o
+        arrow: {
+          html: `
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              style="transform: rotate(ROTATION);"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M11.9481 14.8285L10.5339 16.2427L6.29122 12L10.5339 7.7574L11.9481 9.17161L10.1196 11H17.6568V13H10.1196L11.9481 14.8285Z"
+                fill="currentColor"
+              />
+              <path
+                fill-rule="evenodd"
+                clip-rule="evenodd"
+                d="M4.22183 19.7782C-0.0739419 15.4824 -0.0739419 8.51759 4.22183 4.22183C8.51759 -0.0739419 15.4824 -0.0739419 19.7782 4.22183C24.0739 8.51759 24.0739 15.4824 19.7782 19.7782C15.4824 24.0739 8.51759 24.0739 4.22183 19.7782ZM5.63604 18.364C2.12132 14.8492 2.12132 9.15076 5.63604 5.63604C9.15076 2.12132 14.8492 2.12132 18.364 5.63604C21.8787 9.15076 21.8787 14.8492 18.364 18.364C14.8492 21.8787 9.15076 21.8787 5.63604 18.364Z"
+                fill="currentColor"
+              />
+            </svg>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12] },
+
+        // https://css.gg/icon/close-o
+        close: {
+          html: `
+          <svg xmlns="http://www.w3.org/2000/svg"
+               width="24"
+               height="24"
+               viewBox="0 0 24 24"
+               fill="none" >
+            <path
+              d="M16.3394 9.32245C16.7434 8.94589 16.7657 8.31312 16.3891 7.90911C16.0126 7.50509 15.3798 7.48283 14.9758 7.85938L12.0497 10.5866L9.32245 7.66048C8.94589 7.25647 8.31312 7.23421 7.90911 7.61076C7.50509 7.98731 7.48283 8.62008 7.85938 9.0241L10.5866 11.9502L7.66048 14.6775C7.25647 15.054 7.23421 15.6868 7.61076 16.0908C7.98731 16.4948 8.62008 16.5171 9.0241 16.1405L11.9502 13.4133L14.6775 16.3394C15.054 16.7434 15.6868 16.7657 16.0908 16.3891C16.4948 16.0126 16.5171 15.3798 16.1405 14.9758L13.4133 12.0497L16.3394 9.32245Z"
+              fill="currentColor"
+            />
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M1 12C1 5.92487 5.92487 1 12 1C18.0751 1 23 5.92487 23 12C23 18.0751 18.0751 23 12 23C5.92487 23 1 18.0751 1 12ZM12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21Z"
+              fill="currentColor"
+            />
+          </svg>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12] },
+
+        // // https://css.gg/icon/album
+        // album: `
+        //   <svg xmlns="http://www.w3.org/2000/svg"
+        //        width="24"
+        //        height="24"
+        //        viewBox="0 0 24 24"
+        //        fill="none" >
+        //     <path
+        //       fill-rule="evenodd"
+        //       clip-rule="evenodd"
+        //       d="M2 19C2 20.6569 3.34315 22 5 22H19C20.6569 22 22 20.6569 22 19V5C22 3.34315 20.6569 2 19 2H5C3.34315 2 2 3.34315 2 5V19ZM20 19C20 19.5523 19.5523 20 19 20H5C4.44772 20 4 19.5523 4 19V5C4 4.44772 4.44772 4 5 4H10V12.0111L12.395 12.0112L14.0001 9.86419L15.6051 12.0112H18.0001L18 4H19C19.5523 4 20 4.44772 20 5V19ZM16 4H12V9.33585L14.0001 6.66046L16 9.33571V4Z"
+        //       fill="currentColor"
+        //     />
+        //   </svg>`,
+      };
+      // // https://css.gg/icon/brackets
+      // var brackets = `
+      //     <svg width="24"
+      //          height="24"
+      //          viewBox="0 0 24 24"
+      //          fill="none"
+      //          xmlns="http://www.w3.org/2000/svg" >
+      //       <path d="M11 7V9H9V15H11V17H7V7H11Z" fill="currentColor" />
+      //       <path d="M15 15H13V17H17V7H13V9H15V15Z" fill="currentColor" />
+      //       <path
+      //         fill-rule="evenodd"
+      //         clip-rule="evenodd"
+      //         d="M3 6C3 4.34315 4.34315 3 6 3H18C19.6569 3 21 4.34315 21 6V18C21 19.6569 19.6569 21 18 21H6C4.34315 21 3 19.6569 3 18V6ZM6 5H18C18.5523 5 19 5.44772 19 6V18C19 18.5523 18.5523 19 18 19H6C5.44772 19 5 18.5523 5 18V6C5 5.44772 5.44772 5 6 5Z"
+      //         fill="currentColor"
+      //       />
+      //     </svg>
+      // `;
+    </script>
+    <script>
+        var map = L.map('mapid').setView([50.36602, 30.49131], 12); // Голосеево
+        var markers = [];
+        var room = window.location.hash.substring(1);
+        document.title = `TMA (${room})`;
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Функція для додавання мітки на карту
+        function addMarker(location) {
+          let latitude = location.latitude;
+          let longitude = location.longitude;
+
+          const utcDate = new Date(new Date().toISOString());
+          let year = utcDate.getUTCFullYear();
+          let month = utcDate.getUTCMonth() + 1; // Month is 0-indexed
+          let day = utcDate.getUTCDate();
+          let hours = utcDate.getUTCHours();
+          let minutes = utcDate.getUTCMinutes();
+          let seconds = utcDate.getUTCSeconds();
+
+          let date = day * 10000 + month * 100 + (year % 100);
+          // console.log(date, " - ", location.date, " : ", date == location.date);
+          // if (date != location.date) {
+          //   var marker = L.marker([latitude, longitude], { opacity:0.7, icon: icons.album }).addTo(map);
+          //   return;
+          // }
+
+          let time = hours * 60*60 + minutes * 60 + seconds;
+
+          let icon = location.speed == 0
+          ? icons.pause
+          : icons.arrow;
+
+          // if (location.time == 0 || date != location.date)
+          //   icon = icons.close;
+          //   return
+          //   markers.push(
+          //     L.marker([latitude, longitude], { opacity:1.0, icon:
+          //     L.divIcon({...icon, className: "gray"})
+          //   }).addTo(map));
+          // }
+
+          icon = {...icon, html: icon.html.replace("ROTATION", (90 + (location.course || 0)) + "deg")};
+
+          // too old?
+          var color;
+          // console.log(`time: ${time}, location.time: ${location.time}, ${S2T(location.time)}, -: ${time - S2T(location.time)}`);
+          if (time - S2T(location.time) > 300) // > 5 minutes
+            color = "gray";
+          else {
+            color = "green";
+          }
+
+          let marker = L.marker([latitude, longitude], {
+                opacity:1.0, icon: L.divIcon({...icon, className: color})
+            });
+          markers.push(
+            marker.addTo(map));
+
+          let yyhhmm = ""+location.date;
+          d = new Date("20" + yyhhmm.substr(4, 6), 0, 1);
+          d.setUTCMonth(parseInt(yyhhmm.substr(2, 2)));
+          d.setUTCDate (parseInt(yyhhmm.substr(0, 2)));
+          let hhmmss = ""+location.time;
+          d.setUTCHours(parseInt(hhmmss.substr(0, 2)));
+          d.setUTCMinutes(parseInt(hhmmss.substr(2, 2)));
+          d.setUTCSeconds(parseInt(hhmmss.substr(4)));
+
+          let text = `
+            <li>Last seen: ${d.toLocaleString(navigator.language)}<div style='text-align: right;'>${SecondsToText(time - S2T(location.time))} ago.</div></li>
+            <li>Speed: ${location.speed * 1.852} km/h </li>
+            <li>Altitude: ${location.altitude}</li>
+          `;
+          if (text)
+            marker.bindPopup(text);
+        }
+
+/*        // Приклад отримання геолокації користувача (працює лише на HTTPS та з дозволу користувача)
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var userLat = position.coords.latitude;
+                var userLng = position.coords.longitude;
+                addMarker(userLat, userLng, 'Ви тут!');
+                map.setView([userLat, userLng], 15); // Центруємо карту на користувачеві
+            }, function(error) {
+                console.error("Помилка отримання геолокації:", error);
+            });
+        } else {
+            console.log("Геолокація не підтримується вашим браузером.");
+        }*/
+
+      // цикл получения объектов
+      function update() {
+        fetch(`${window.location.origin}/tma/location/${room}`)
+        .then(response => {
+          if (!response.ok)
+            throw new Error(`HTTP error! status: ${response.status}`);
+          return response.json();
+        })
+        .then(json => {
+          // console.log(json);
+          // Process the JSON data here
+          markers.forEach(function(marker) {
+            map.removeLayer(marker);
+          });
+          markers = [];
+          json.forEach(location => {
+            addMarker(location);
+          });
+        })
+        .catch(error => {
+          console.error(error);
+        });
+      }
+      update();
+      setInterval(update, 5000);
+    </script>
+
+    <script>
+      function SecondsToText(seconds)
+      {
+        let total = parseInt(seconds);
+        let h = Math.floor( total / (60*60) );
+        let m = Math.floor((total % (60*60)) / 60);
+        let s = Math.floor( total % (60) );
+
+        return "" +
+          (h > 0          ? `${h} hours, ` :"") +
+          (h > 0 || m > 0 ? `${m} minutes, ` :"") +
+          (h > 0          ? 'and ' :"") +
+          `${s} seconds`;
+      }
+      function S2T(str)
+      {
+        let S = "" + str;
+        let h = parseInt(S.substr(0, 2));
+        let m = parseInt(S.substr(2, 2));
+        let s = parseInt(S.substr(4, 2));
+        return ((h * 60) + m) * 60 + s;
+      }
+    </script>
+
+</body>
+</html>

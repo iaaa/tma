@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Track My Ass</string>
+    <string name="description">Приложение для отслеживания местоположения устройства</string>
+    <string name="exit">Выход</string>
+    <string name="map">Карта</string>
+
+</resources>

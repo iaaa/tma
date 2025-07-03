@@ -180,12 +180,72 @@
       (file json)
       (otus random!))
 
-(http:run 5002 (lambda (fd request headers stream return)
-   (LOGD "\nRequest: " BLUE request END)
-
+; -- database handler -----
+(actor 'database (lambda ()
    (define database (make-sqlite3)) ; make new sql database connection
    (sqlite3_open "database.sqlite" database)
    (db:query "PRAGMA foreign_keys = ON") ; enable foreign keys support
+
+   (let loop ()
+      (let*((envelope (wait-mail))
+            (sender msg envelope))
+         (case msg
+            (['put room body]
+               (define id (getf body 'id))
+               ; location
+               (define latitude (getf body 'latitude))
+               (define longitude (getf body 'longitude))
+               (define altitude (getf body 'altitude))
+               ; timestamp
+               (define date (getf body 'date))
+               (define time (getf body 'time))
+               ; movement
+               (define speed (getf body 'speed))
+               (define angle (getf body 'course))
+
+               (db:query "
+                     INSERT OR REPLACE
+                       INTO locations (id, room,
+                                       lat, lon, alt, dat, tim,
+                                       speed, angle)
+                     VALUES (?,?, ?,?,?, ?,?, ?,?)"
+                     id room latitude longitude altitude date time speed angle)
+               (loop))
+
+            (['get room]
+               (mail sender (db:map (db:query "
+                     SELECT id,
+                            lat, lon, alt, dat, tim,
+                            speed, angle
+                       FROM locations
+                      WHERE room == ?" room)
+                  (lambda (id lat lon alt dat tim speed angle) {
+                     'id id
+                     ; main info
+                     'latitude lat
+                     'longitude lon
+                     'altitude alt
+                     ; additional info
+                     'date dat
+                     'time tim
+                     'speed speed
+                     'course angle
+                  })))
+               (loop))
+            (else
+               (loop)))))
+
+   (sqlite3_close database)
+))
+
+
+(http:run 5002 (lambda (fd request headers stream return)
+   (LOGD "\nRequest: " BLUE request END)
+   (LOGD "\nHeaders: " WHITE headers END)
+
+   ; not a valid http (https or websocket or smth.)
+   (unless (vector? request)
+      (return #true))
 
    (let*((al (ref request 2))   ; al - address line
          (pu (http:parse-url al)) ; pu - parsed url
@@ -198,7 +258,8 @@
          (body stream
             ; если пришел json - разберем его,
             ; иначе разберем строку запроса и не трогаем payload
-            (if (and content-type (string-ci=? content-type "application/json"))
+            (if (and content-type
+                     (string-ci=? content-type "application/json"))
             then
                (let ((json (read-json stream)))
                   (print "json: " json)
@@ -210,8 +271,6 @@
          ; пользовательская сессия
          (session (headers 'x-tmagps-sid #f)))
 
-;  (print "body: " body)
-
    ; аналог функции write для сокета
    (define (send . args)
       (for-each (lambda (arg)
@@ -221,17 +280,16 @@
    ; http/ response
    (define (respond color status . args)
       (LOGD color "Sending " status END)
-      (send "HTTP/1.0 " status "\r\n")
+      (send "HTTP/1.1 " status "\r\n")
       (send "Content-Type: text/html"        "\r\n"
             "Access-Control-Allow-Origin: *" "\r\n" ; TEMP, allow any thirdparty clients to play
             "Cache-Control: no-store"        "\r\n"
+            "Connection: keep-alive"         "\r\n"
             "Server: " (car *version*) "/" (cdr *version*) "\r\n"
-            "Connection: close"              "\r\n"
             "Content-Length: 0"              "\r\n"
             "\r\n")
       (apply send args)
-      (sqlite3_close database)
-      (return #true))
+      (return #false))
 
    ; http/ response codes
    (define (send-200) (respond GREEN "200 OK" ""))                (define send-ok send-200) ; ({} во избежание ошибки парсинга json)
@@ -250,17 +308,30 @@
       (define bytes (string->utf8 (stringify json)))
 
       (LOGD "Sending json (with 200 OK): " GREEN json END)
-      (send "HTTP/1.0 " "200 OK" "\r\n")
+      (send "HTTP/1.1 " "200 OK" "\r\n")
       (send "Access-Control-Allow-Origin: *" "\r\n" ; TESTING, allow any thirdparty clients to play
+            "Cache-Control: no-store"        "\r\n"
+            "Connection: keep-alive"         "\r\n"
+            "Server: " (car *version*) "/" (cdr *version*) "\r\n"
             "Content-Type: application/json" "\r\n"
             "Content-Length: " (size bytes)  "\r\n"
-            "Cache-Control: no-store"        "\r\n"
-            "Server: " (car *version*) "/" (cdr *version*) "\r\n"
-            "Connection: close"              "\r\n"
             "\r\n")
-      (syscall 1 fd bytes)
-      (sqlite3_close database)
-      (return #true))
+      (write-bytevector fd bytes)
+      (return #false))
+
+   (define (send-file name)
+      (define bytes (string->utf8 (file->string name)))
+
+      (LOGD "Sending file (with 200 OK): " GREEN name END)
+      (send "HTTP/1.1 " "200 OK" "\r\n")
+      (send "Access-Control-Allow-Origin: *" "\r\n" ; TESTING, allow any thirdparty clients to play
+            "Connection: keep=-alive"        "\r\n"
+            "Server: " (car *version*) "/" (cdr *version*) "\r\n"
+            "Content-Type: text/html"        "\r\n"
+            "Content-Length: " (size bytes)  "\r\n"
+            "\r\n")
+      (write-bytevector fd bytes)
+      (return #false))
 
    ; ========================================================================
    ; ------------------------------------------------------------------------
@@ -269,53 +340,16 @@
       ; Cross-Domain Access Processor
       ((string-eq? (ref request 1) "OPTIONS")
          (LOGD "Sending " GREEN "200 OK" END)
-         (send "HTTP/1.0 " "200 OK" "\r\n")
-         (send "Access-Control-Allow-Origin: *"                           "\r\n"
-               "Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE"  "\r\n"
-               "Access-Control-Allow-Headers: Content-Type,X-TmaGps-SID" "\r\n"
+         (send "HTTP/1.1 " "200 OK" "\r\n")
+         (send "Access-Control-Allow-Origin: *"        "\r\n"
+               "Access-Control-Allow-Methods: GET,PUT" "\r\n"
+               ;; "Access-Control-Allow-Headers: Content-Type,X-TmaGps-SID" "\r\n"
                "Server: " (car *version*) "/" (cdr *version*)             "\r\n"
-               "Connection: close"                                        "\r\n"
-               "Content-Length: 0"                                        "\r\n"
+               "Connection: keep-alive"                "\r\n"
+               "Content-Length: 0"                     "\r\n"
                "\r\n")
-         (sqlite3_close database) ; do not forget to close the database connection
-         (return #true))
+         (return #false))
 
-      ; Логин
-      ; TODO: add sqlite extension function sha256
-      ((and (string-eq? path "/tma/login")
-            (string-eq? (ref request 1) "POST"))
-         (let ((login    (getf body 'login))
-               (password (getf body 'password))
-               (remote_address (headers 'x-real-ip (car (syscall 51 fd)))))
-            (sqlite3_create_function_v2 database "SHA1" 1 SQLITE_UTF8 #f sha1-function #f #f #f)
-            (db:apply (db:value "
-                  UPDATE accounts
-                     SET session = lower(hex(randomblob(16))),
-                           remote_address = ?3
-                     WHERE login = ?1 AND password = SHA1('hf:'||?1||':'||?2||':'||LENGTH(?2))
-               RETURNING enabled,name,session"  login password remote_address)
-               (lambda  (enabled name session)
-                  (case enabled
-                     (0 (send-forbidden)) ; 403
-                     (1 (send-json {      ; 200
-                        'name name
-                        'session session
-                     })))))
-            ; else
-            (send-unauthorized))) ; 401
-
-      ; иначе просто двигаемся дальше
-      (else #f))
-   ; ----------------------------------------------------------------------------
-   ; весь остальной API требует авторизации
-   (define account (db:value "SELECT id FROM accounts WHERE session = ?" session))
-   (print "session, account: " session ", " account)
-   (unless account
-      (send-unauthorized))
-
-   (REST
-      ; | HTTP | POST   | GET    | PUT              | DELETE | PATCH  |
-      ; | SQL  | INSERT | SELECT | UPDATE OR INSERT | DELETE | UPDATE |
       ; --------------------------------------------
       ; handle "ping" to check the session logged in
       ; todo: add "ping" counter to prevent password
@@ -323,64 +357,20 @@
       (GET "/tma/ping" ()
          (send-ok)) ; 200
 
-      ; logout
-      (POST "/tma/logout" ()
-         ; сбрасываем сессионный ключ
-         (if (db:value "
-               UPDATE accounts
-                  SET session=NULL
-                WHERE session=?" session)
-            (send-ok))
-         (send-internal-server-error))
+      (GET "/tma" ()
+         (send-file "index.html"))
+      (GET "/tma/" ()
+         (send-file "index.html"))
 
-      ;; ; return all locations in group
-      ;; (GET "/tma/locations" () ; todo: add group id
-      ;;    (send-json (list->vector
-      ;;       (db:map (db:query "SELECT latitude, longitude
-      ;;                            FROM locations
-      ;;                         WHERE account=?" account)
-      ;;          (lambda (lat lon) {
-      ;;             'lat lat
-      ;;             'lon lon
-      ;;          }))))
-      ;;    (send-404))
-
-      ; record new user location
-      (PUT "/tma/location" ()
-         (define utc_time (getf body 'utc))
-         (define latitude (getf body 'lat))
-         (define longitude (getf body 'lon))
-         (define course (getf body 'course))
-         (define speed (getf body 'speed))
-
-         (let ((id (db:value "
-                  INSERT INTO locations (account,
-                        latitude, longitude,
-                        utc_time, course, speed) VALUES (?,?,?,?,?,?)
-                  RETURNING id" account latitude longitude utc_time course speed)))
-            (when (number? id)
-               (send-json (list->vector (db:map (db:query "
-                     SELECT account,
-                            latitude, longitude,
-                            course, speed, utc_time
-                      FROM locations
-                     WHERE latitude != 0
-                       AND account != ?
-                     GROUP BY account
-                    HAVING MAX(id)" account)
-                  (lambda (account latitude longitude course speed utc_time) {
-                     'name "name"
-                     'acc account
-                     ; main info
-                     'lat latitude
-                     'lon longitude
-                     ; additional info
-                     'utc utc_time
-                     'course course
-                     'speed speed
-                  })))))
-            (send-500))
-         (send-404))
+      ; record new user location (and return all in room)
+      (API "/tma/location/?" (room)
+         (print "Called " (ref request 1))
+         (when (string-eq? (ref request 1) "PUT")
+            (mail 'database ['put room body]))
+         
+         (print "Collecting database data...")
+         (send-json (list->vector
+            (await (mail 'database ['get room])))))
 
       ;else
       (else

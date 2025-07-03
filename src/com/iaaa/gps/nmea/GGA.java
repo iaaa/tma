@@ -43,7 +43,7 @@ public class GGA extends NMEA
 	public static char Quality;
 
 //	7 )	Number of satellites in view, 00 - 12
-	public static long Satellites;
+	public static int Satellites;
 
 //	8 )	Horizontal Dilution of precision (HDOP)
 	public static float HDOP;

@@ -268,7 +268,7 @@ public class TiledMap extends View
 
 		final int W = (int)(this.getWidth() / magnification);
 		final int H = (int)(this.getHeight() / magnification);
-		Log.v("Gps", "Magnifier: " + String.valueOf(magnification) + ", W = " + String.valueOf(W) + ", H = " + String.valueOf(H));
+		// Log.v("Gps", "Magnifier: " + String.valueOf(magnification) + ", W = " + String.valueOf(W) + ", H = " + String.valueOf(H));
 
 		if (magnifier) {
 			canvas.save();
